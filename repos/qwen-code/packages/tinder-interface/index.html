@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Swipeverse</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="app" id="app">
+      <header class="app__header">
+        <div class="brand">
+          <span class="brand__logo" aria-hidden="true">⚡</span>
+          <div>
+            <h1>Swipeverse</h1>
+            <p>Discover and chat with AI companions in a swipe.</p>
+          </div>
+        </div>
+        <button class="app__theme-toggle" id="themeToggle" aria-label="Toggle theme">
+          <span class="app__theme-toggleTrack">
+            <span class="app__theme-toggleThumb"></span>
+          </span>
+        </button>
+      </header>
+
+      <main class="experience" aria-live="polite">
+        <section class="deck" aria-label="Character cards">
+          <div class="deck__status" id="swipeStatus" role="status" aria-live="assertive"></div>
+          <div class="deck__stack" id="cardStack"></div>
+          <div class="deck__actions">
+            <button class="action action--dismiss" id="dismissButton" aria-label="Dismiss">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M15.535 8.464a1 1 0 0 0-1.414-1.414L12 9.172 9.879 7.05a1 1 0 1 0-1.414 1.414L10.586 10.5 8.465 12.621a1 1 0 0 0 1.414 1.414L12 11.914l2.121 2.121a1 1 0 0 0 1.414-1.414L13.414 10.5z"
+                />
+              </svg>
+            </button>
+            <button class="action action--like" id="likeButton" aria-label="Like">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M12 20.273c-.322 0-.64-.096-.91-.277C7.362 17.4 4 14.896 4 10.955 4 8.285 6.243 6 8.861 6c1.342 0 2.63.548 3.539 1.513C13.508 6.548 14.796 6 16.139 6 18.757 6 21 8.285 21 10.955c0 3.941-3.362 6.445-7.09 9.041-.27.181-.588.277-.91.277" />
+              </svg>
+            </button>
+          </div>
+        </section>
+
+        <aside class="chat" id="chatPanel" aria-label="Chat panel" hidden>
+          <header class="chat__header">
+            <button class="chat__back" id="chatBack" aria-label="Back to cards">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M15.5 5.5 9 12l6.5 6.5" />
+              </svg>
+            </button>
+            <img class="chat__avatar" id="chatAvatar" alt="" />
+            <div class="chat__meta">
+              <h2 id="chatName"></h2>
+              <p id="chatTitle"></p>
+            </div>
+          </header>
+
+          <ul class="chat__timeline" id="chatTimeline"></ul>
+
+          <form class="chat__composer" id="chatForm">
+            <input
+              id="chatInput"
+              type="text"
+              name="message"
+              placeholder="Send a message"
+              autocomplete="off"
+              required
+              aria-label="Type your message"
+            />
+            <button type="submit" class="chat__send" aria-label="Send message">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 12 20 4l-4 8 4 8z" />
+              </svg>
+            </button>
+          </form>
+        </aside>
+      </main>
+
+      <footer class="app__footer">
+        <p>
+          Swipe, tap, and chat with imaginative AI characters. Optimized for desktop and
+          touch screens alike.
+        </p>
+      </footer>
+    </div>
+
+    <template id="cardTemplate">
+      <article class="card" data-character>
+        <div class="card__overlay">
+          <span class="card__badge card__badge--like">Liked</span>
+          <span class="card__badge card__badge--dismiss">Nope</span>
+        </div>
+        <button class="card__body" type="button">
+          <figure class="card__visual">
+            <img class="card__avatar" alt="" loading="lazy" />
+            <figcaption>
+              <h2 class="card__name"></h2>
+              <p class="card__title"></p>
+            </figcaption>
+          </figure>
+          <p class="card__bio"></p>
+          <ul class="card__tags"></ul>
+        </button>
+      </article>
+    </template>
+
+    <template id="chatMessageTemplate">
+      <li class="chat__message">
+        <div class="chat__bubble">
+          <p></p>
+        </div>
+        <time></time>
+      </li>
+    </template>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

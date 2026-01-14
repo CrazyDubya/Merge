@@ -1,0 +1,59 @@
+# System files
+.*
+!.gitignore
+!.gitattributes
+
+# Cache and temp files
+.cache/
+.tmp/
+.temp/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+ehthumbs.db
+Thumbs.db
+
+# Project directories that have been moved to separate repositories
+prison/
+theater-critics-system/
+unicorn/
+Library/Mobile Documents/com~apple~CloudDocs/pup8725/disaster/
+
+# Node modules
+node_modules/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.coverage
+.pytest_cache/
+
+# Environment files
+.env
+.venv/
+venv/
+env/
+
+# Log files
+*.log
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
