@@ -133,11 +133,12 @@ class EpisodicMemory:
     """
     Episodic memory with automatic consolidation.
 
-    Features:
-    - Fixed prefix (always keep recent N memories)
-    - Lookback window for context building
+    Features from TinyTroupe:
+    - Fixed prefix (always keep first N memories for context)
+    - Lookback window for recent context
     - Automatic consolidation of old episodes
-    - Bounded growth
+    - Memory stats tracking
+    - Bounded growth with cleanup strategies
     """
 
     def __init__(
@@ -147,16 +148,33 @@ class EpisodicMemory:
         max_episodes: int = 100,
         min_episode_length: int = 5,
         max_episode_length: int = 50,
+        max_total_entries: int = 1000,
+        cleanup_strategy: str = "fifo",
     ):
+        """
+        Initialize episodic memory.
+
+        Args:
+            fixed_prefix_length: Number of earliest memories to always retain
+            lookback_length: Number of recent memories to include in context
+            max_episodes: Maximum number of episodes to store
+            min_episode_length: Minimum entries before episode is saved
+            max_episode_length: Auto-finish episode after this many entries
+            max_total_entries: Total memory limit (triggers consolidation)
+            cleanup_strategy: 'fifo', 'age', or 'importance'
+        """
         self.fixed_prefix_length = fixed_prefix_length
         self.lookback_length = lookback_length
         self.max_episodes = max_episodes
         self.min_episode_length = min_episode_length
         self.max_episode_length = max_episode_length
+        self.max_total_entries = max_total_entries
+        self.cleanup_strategy = cleanup_strategy
 
         self.current_episode: Optional[Episode] = None
         self.episodes: List[Episode] = []
         self._entry_count = 0
+        self._consolidated_count = 0
 
     def start_episode(self, title: str) -> Episode:
         """Start a new episode."""
@@ -285,6 +303,119 @@ class EpisodicMemory:
             lines.append(f"  [{time_str}] ({entry.memory_type.value}) {entry.content}")
 
         return "\n".join(lines)
+
+    def retrieve_with_prefix(
+        self,
+        include_omission_info: bool = True,
+    ) -> List[MemoryEntry]:
+        """
+        Retrieve memories with fixed prefix + lookback pattern.
+
+        From TinyTroupe: Always include first N memories (fixed prefix)
+        plus last M memories (lookback window).
+        """
+        all_entries = []
+
+        # Gather all entries
+        for episode in self.episodes:
+            all_entries.extend(episode.entries)
+        if self.current_episode:
+            all_entries.extend(self.current_episode.entries)
+
+        if not all_entries:
+            return []
+
+        # Fixed prefix (oldest memories for context)
+        prefix = all_entries[:self.fixed_prefix_length]
+
+        # Lookback (most recent memories)
+        suffix_start = max(self.fixed_prefix_length, len(all_entries) - self.lookback_length)
+        suffix = all_entries[suffix_start:]
+
+        # Combine with optional omission marker
+        if include_omission_info and suffix_start > self.fixed_prefix_length:
+            omission = MemoryEntry(
+                content="[... older memories omitted for brevity ...]",
+                memory_type=MemoryType.THOUGHT,
+                importance=0.0,
+            )
+            return prefix + [omission] + suffix
+        elif suffix_start > self.fixed_prefix_length:
+            return prefix + suffix
+        else:
+            return all_entries
+
+    def get_stats(self) -> Dict[str, Any]:
+        """
+        Get memory statistics.
+
+        From TinyTroupe: Track memory usage for monitoring.
+        """
+        total_entries = self._entry_count
+        current_buffer = len(self.current_episode.entries) if self.current_episode else 0
+
+        return {
+            "total_entries": total_entries,
+            "current_buffer_size": current_buffer,
+            "episode_count": len(self.episodes),
+            "consolidated_count": self._consolidated_count,
+            "max_total_entries": self.max_total_entries,
+            "usage_ratio": total_entries / self.max_total_entries if self.max_total_entries else 0,
+            "cleanup_strategy": self.cleanup_strategy,
+            "approaching_limit": (total_entries / self.max_total_entries) > 0.8 if self.max_total_entries else False,
+        }
+
+    def consolidate_old_episodes(
+        self,
+        max_to_consolidate: int = 5,
+        consolidator: Optional[Callable[[List[Episode]], str]] = None,
+    ) -> int:
+        """
+        Consolidate old episodes into summaries.
+
+        From TinyTroupe: Reduces memory size while preserving key information.
+
+        Args:
+            max_to_consolidate: Maximum episodes to consolidate at once
+            consolidator: Optional function to generate summary from episodes
+
+        Returns:
+            Number of episodes consolidated
+        """
+        # Find episodes to consolidate (oldest, not already consolidated)
+        to_consolidate = [
+            ep for ep in self.episodes
+            if not ep.consolidated and len(ep.entries) >= self.min_episode_length
+        ][:max_to_consolidate]
+
+        if not to_consolidate:
+            return 0
+
+        count = 0
+        for episode in to_consolidate:
+            # Default consolidation: summarize entry contents
+            if consolidator:
+                summary = consolidator([episode])
+            else:
+                # Simple default: list main points
+                contents = [e.content for e in episode.entries]
+                summary = f"Episode '{episode.title}': {len(episode.entries)} events including - " + "; ".join(contents[:3])
+                if len(contents) > 3:
+                    summary += f"... and {len(contents) - 3} more events."
+
+            episode.summary = summary
+            episode.consolidated = True
+            self._consolidated_count += 1
+            count += 1
+
+            # Remove original entries to save memory (keep summary)
+            episode.entries = []
+
+        return count
+
+    def needs_consolidation(self) -> bool:
+        """Check if memory is approaching limits and needs consolidation."""
+        return self._entry_count >= (self.max_total_entries * 0.8)
 
 
 class LessonMemory:
