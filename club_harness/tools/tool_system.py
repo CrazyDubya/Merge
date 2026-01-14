@@ -117,36 +117,78 @@ class Tool(ABC):
 
 
 class CalculatorTool(Tool):
-    """Simple calculator tool for testing."""
+    """Calculator tool with safe math functions."""
 
     name = "calculator"
-    description = "Perform basic arithmetic calculations"
+    description = "Perform arithmetic calculations with support for math functions (abs, min, max, round, sum, pow, sqrt)"
     parameters = [
         ToolParameter(
             name="expression",
             type="string",
-            description="Mathematical expression to evaluate (e.g., '2 + 2', '10 * 5')",
+            description="Mathematical expression to evaluate (e.g., '2 + 2', 'abs(-5)', 'sqrt(16)', 'max(1,2,3)')",
         ),
     ]
 
+    # Safe math functions available for evaluation
+    SAFE_FUNCTIONS = {
+        'abs': abs,
+        'min': min,
+        'max': max,
+        'round': round,
+        'sum': sum,
+        'pow': pow,
+        'len': len,
+        # Math module functions
+        'sqrt': __import__('math').sqrt,
+        'ceil': __import__('math').ceil,
+        'floor': __import__('math').floor,
+        'log': __import__('math').log,
+        'log10': __import__('math').log10,
+        'sin': __import__('math').sin,
+        'cos': __import__('math').cos,
+        'tan': __import__('math').tan,
+        'pi': __import__('math').pi,
+        'e': __import__('math').e,
+    }
+
     def execute(self, expression: str, **kwargs) -> ToolResult:
         import time
+        import re
         start = time.time()
 
         try:
-            # Safe evaluation of math expressions
-            allowed_chars = set("0123456789+-*/().^ ")
-            if not all(c in allowed_chars for c in expression):
-                return ToolResult(
-                    success=False,
-                    output=None,
-                    error="Invalid characters in expression",
-                    tool_name=self.name,
-                )
+            # Check for dangerous patterns
+            dangerous_patterns = [
+                r'__',           # Dunder methods
+                r'import',       # Import statements
+                r'exec',         # Exec function
+                r'eval',         # Eval function
+                r'open',         # File operations
+                r'os\.',         # OS module
+                r'sys\.',        # Sys module
+                r'subprocess',   # Subprocess
+                r'globals',      # Globals access
+                r'locals',       # Locals access
+                r'getattr',      # Attribute access
+                r'setattr',      # Attribute setting
+                r'delattr',      # Attribute deletion
+                r'\[.*\]',       # List/dict subscript (allow only for basic usage)
+            ]
+
+            for pattern in dangerous_patterns:
+                if re.search(pattern, expression, re.IGNORECASE):
+                    return ToolResult(
+                        success=False,
+                        output=None,
+                        error="Invalid characters in expression",
+                        tool_name=self.name,
+                    )
 
             # Replace ^ with ** for exponentiation
             expression = expression.replace("^", "**")
-            result = eval(expression)
+
+            # Evaluate with only safe functions available
+            result = eval(expression, {"__builtins__": {}}, self.SAFE_FUNCTIONS)
 
             return ToolResult(
                 success=True,

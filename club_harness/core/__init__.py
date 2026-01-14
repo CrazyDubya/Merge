@@ -12,6 +12,7 @@ from .types import (
 )
 from .config import Config, config
 from .agent import Agent
+from .loop_detection import LoopDetector, LoopDetectionResult, detect_loop
 
 __all__ = [
     "AgentState",
@@ -25,4 +26,7 @@ __all__ = [
     "Config",
     "config",
     "Agent",
+    "LoopDetector",
+    "LoopDetectionResult",
+    "detect_loop",
 ]
