@@ -10,11 +10,14 @@ Combines patterns from:
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, TYPE_CHECKING
 
 from .types import AgentState, Confidence, ConfidenceSource, Goal, Message
 from .config import config
-from ..llm.router import LLMRouter, LLMResponse, router
+
+# Avoid circular import
+if TYPE_CHECKING:
+    from ..llm.router import LLMRouter, LLMResponse
 
 
 @dataclass
@@ -45,14 +48,21 @@ class Agent:
         name: str,
         instructions: str,
         persona: Optional[Dict[str, Any]] = None,
-        llm_router: Optional[LLMRouter] = None,
+        llm_router: Optional["LLMRouter"] = None,
         model: Optional[str] = None,
         tier: Optional[str] = None,
     ):
         self.name = name
         self.instructions = instructions
         self.persona = persona or {}
-        self.llm_router = llm_router or router
+
+        # Lazy import to avoid circular dependency
+        if llm_router is None:
+            from ..llm.router import router as default_router
+            self.llm_router = default_router
+        else:
+            self.llm_router = llm_router
+
         self.model = model
         self.tier = tier or "free"
 
@@ -94,7 +104,7 @@ class Agent:
         messages.append({"role": "user", "content": user_message})
         return messages
 
-    def step(self, user_message: str) -> LLMResponse:
+    def step(self, user_message: str) -> "LLMResponse":
         """
         Execute a single turn (stateless reducer pattern from 12-factor).
 
