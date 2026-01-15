@@ -1,18 +1,11 @@
 """
 Memory systems for Club Harness.
-
-Combines patterns from:
-- TinyTroupe: Episodic memory with consolidation, semantic memory with embeddings
-- LisaSimpson: Lesson extraction with confidence decay
-- 12-factor: Event-sourced state management
 """
 
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Dict, List, Optional, Tuple
-import hashlib
-import json
 
 
 class MemoryType(Enum):

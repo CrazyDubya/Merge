@@ -2,10 +2,6 @@
 OpenRouter backend for Club Harness.
 
 Provides access to 400+ models through a unified API.
-Inspired by:
-- llm-council: Async model queries
-- hivey: Cost-aware routing
-- qwen-code: Streaming support
 """
 
 import json

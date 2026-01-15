@@ -1,11 +1,5 @@
 """
 Core type definitions for Club Harness.
-
-Combines patterns from:
-- LisaSimpson: Confidence provenance
-- TinyTroupe: Persona and memory types
-- Agentic-Hub: Agent interface
-- qwen-code: Tool types
 """
 
 from dataclasses import dataclass, field
@@ -15,7 +9,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 
 class ConfidenceSource(Enum):
-    """Source of confidence information (from LisaSimpson)."""
+    """Source of confidence information."""
     INFERENCE = "inference"
     OBSERVATION = "observation"
     ASSUMPTION = "assumption"
@@ -26,11 +20,7 @@ class ConfidenceSource(Enum):
 
 @dataclass
 class Confidence:
-    """
-    Confidence value with provenance tracking.
-
-    Inspired by LisaSimpson's principled confidence system.
-    """
+    """Confidence value with provenance tracking."""
     value: float  # 0.0 to 1.0
     source: ConfidenceSource
     timestamp: datetime = field(default_factory=datetime.now)
@@ -59,7 +49,7 @@ class Confidence:
 
 @dataclass
 class Fact:
-    """Atomic unit of knowledge with confidence (from LisaSimpson)."""
+    """Atomic unit of knowledge with confidence."""
     key: str
     value: Any
     confidence: Confidence
@@ -67,11 +57,7 @@ class Fact:
 
 @dataclass
 class Goal:
-    """
-    Agent goal with verification support.
-
-    Inspired by LisaSimpson's goal system with dependencies.
-    """
+    """Agent goal with verification support."""
     description: str
     predicate: Optional[Callable[["AgentState"], bool]] = None
     dependencies: List["Goal"] = field(default_factory=list)
@@ -86,7 +72,7 @@ class Goal:
 
 @dataclass
 class Message:
-    """Chat message (from qwen-code/TinyTroupe)."""
+    """Chat message."""
     role: str  # "system", "user", "assistant", "tool"
     content: str
     name: Optional[str] = None
@@ -105,11 +91,13 @@ class ToolCall:
 @dataclass
 class ToolResult:
     """Tool execution result."""
-    tool_call_id: str
     success: bool
     output: Any
     error: Optional[str] = None
     execution_time: float = 0.0
+    tool_name: str = ""
+    tool_call_id: Optional[str] = None
+    timestamp: datetime = field(default_factory=datetime.now)
 
 
 @dataclass

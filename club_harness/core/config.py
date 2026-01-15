@@ -1,9 +1,5 @@
 """
 Configuration management for Club Harness.
-
-Inspired by:
-- TinyTroupe: ConfigManager with decorator defaults
-- 12-factor: Environment-based configuration
 """
 
 import os
