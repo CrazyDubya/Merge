@@ -7,11 +7,15 @@ Combines:
 - qwen-code: ContentGenerator abstraction
 """
 
+import time
+import logging
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
 from ..core.config import config
 from .openrouter import OpenRouterBackend, OpenRouterResponse
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -74,9 +78,11 @@ class LLMRouter:
         max_tokens: Optional[int] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
         provider: str = "openrouter",
+        max_retries: int = 3,
+        retry_delay: float = 2.0,
     ) -> LLMResponse:
         """
-        Send a chat completion request.
+        Send a chat completion request with automatic retry on rate limits.
 
         Args:
             messages: Conversation messages
@@ -86,6 +92,8 @@ class LLMRouter:
             max_tokens: Maximum output tokens
             tools: Tool definitions for function calling
             provider: Backend provider to use
+            max_retries: Maximum retry attempts for rate limits (default 3)
+            retry_delay: Base delay between retries in seconds (exponential backoff)
 
         Returns:
             LLMResponse with content and metadata
@@ -101,22 +109,47 @@ class LLMRouter:
         temperature = temperature if temperature is not None else config.llm.temperature
         max_tokens = max_tokens if max_tokens is not None else config.llm.max_tokens
 
-        # Get backend and make request
+        # Get backend and make request with retry logic
         backend = self.get_backend(provider)
-        response: OpenRouterResponse = backend.chat(
-            messages=messages,
-            model=model,
-            temperature=temperature,
-            max_tokens=max_tokens,
-            tools=tools,
-        )
+        last_error = None
 
-        return LLMResponse(
-            content=response.content,
-            model=response.model,
-            usage=response.usage,
-            tool_calls=response.tool_calls,
-        )
+        for attempt in range(max_retries + 1):
+            try:
+                response: OpenRouterResponse = backend.chat(
+                    messages=messages,
+                    model=model,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    tools=tools,
+                )
+
+                return LLMResponse(
+                    content=response.content,
+                    model=response.model,
+                    usage=response.usage,
+                    tool_calls=response.tool_calls,
+                )
+
+            except Exception as e:
+                last_error = e
+                error_str = str(e).lower()
+
+                # Check if this is a rate limit error (429)
+                if "429" in error_str or "rate" in error_str or "too many" in error_str:
+                    if attempt < max_retries:
+                        wait_time = retry_delay * (2 ** attempt)  # Exponential backoff
+                        logger.warning(
+                            f"Rate limited on attempt {attempt + 1}/{max_retries + 1}. "
+                            f"Waiting {wait_time:.1f}s before retry..."
+                        )
+                        time.sleep(wait_time)
+                        continue
+
+                # For non-rate-limit errors, raise immediately
+                raise
+
+        # All retries exhausted
+        raise last_error or RuntimeError("All retry attempts failed")
 
     async def chat_async(
         self,

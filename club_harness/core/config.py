@@ -16,7 +16,7 @@ from typing import Any, Callable, Dict, List, Optional
 class LLMConfig:
     """LLM provider configuration."""
     provider: str = "openrouter"
-    model: str = "meta-llama/llama-3.2-3b-instruct:free"
+    model: str = "google/gemma-3n-e2b-it:free"  # Updated Jan 2026
     temperature: float = 0.7
     max_tokens: int = 2048
     api_key: Optional[str] = None
@@ -61,11 +61,11 @@ class Config:
     # Updated Jan 2026 with currently available free models
     model_tiers: Dict[str, List[str]] = field(default_factory=lambda: {
         "free": [
-            "meta-llama/llama-3.2-3b-instruct:free",
-            "qwen/qwen3-coder:free",
             "google/gemma-3n-e2b-it:free",
+            "qwen/qwen3-coder:free",
             "moonshotai/kimi-k2:free",
             "nvidia/nemotron-nano-9b-v2:free",
+            "mistralai/devstral-2512:free",
         ],
         "cheap": [
             "google/gemini-2.0-flash-001",

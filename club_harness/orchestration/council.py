@@ -351,6 +351,324 @@ class WeightedVotingStrategy(ConsensusStrategy):
         }
 
 
+class MultiRoundStrategy(ConsensusStrategy):
+    """
+    Multi-round deliberation with iterative refinement.
+
+    Models see top responses from previous rounds and can revise.
+    Adapted from llm-council's multi_round.py.
+
+    Round 1: Initial responses
+    Round 2+: Models see top responses + can revise
+    Final: Chairman synthesizes with evolution context
+    """
+
+    name = "multi_round"
+
+    def __init__(self, rounds: int = 2, show_top_n: int = 2):
+        """
+        Initialize multi-round strategy.
+
+        Args:
+            rounds: Number of deliberation rounds (2-5)
+            show_top_n: Number of top responses to show in revision prompts
+        """
+        self.rounds = max(2, min(5, rounds))
+        self.show_top_n = show_top_n
+
+    async def deliberate(
+        self,
+        query: str,
+        council_models: List[str],
+        chairman_model: str,
+        router: LLMRouter,
+    ) -> CouncilResult:
+        all_rounds = []
+        labels = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
+        # Round 1: Initial responses
+        round1 = await self._initial_round(query, council_models, router, labels)
+        all_rounds.append(round1)
+
+        # Round 2+: Revision rounds
+        for round_num in range(2, self.rounds + 1):
+            round_data = await self._revision_round(
+                query, council_models, router, labels,
+                all_rounds[-1], round_num
+            )
+            all_rounds.append(round_data)
+
+        # Get final responses and rankings from last round
+        final_responses = all_rounds[-1]["responses"]
+        final_rankings = all_rounds[-1]["rankings"]
+        label_to_model = all_rounds[-1]["label_to_model"]
+        aggregate = all_rounds[-1]["aggregate"]
+
+        # Chairman synthesis with evolution context
+        synthesis = await self._synthesize_with_evolution(
+            query, all_rounds, chairman_model, router
+        )
+
+        return CouncilResult(
+            query=query,
+            final_answer=synthesis.content,
+            stage1_responses=final_responses,
+            stage2_rankings=final_rankings,
+            stage3_synthesis=synthesis.content,
+            aggregate_rankings=aggregate,
+            chairman_model=chairman_model,
+            strategy=f"{self.name}_{self.rounds}rounds",
+            total_tokens=synthesis.total_tokens,
+        )
+
+    async def _initial_round(
+        self,
+        query: str,
+        models: List[str],
+        router: LLMRouter,
+        labels: str,
+    ) -> Dict[str, Any]:
+        """Execute initial round of responses and rankings."""
+        responses = []
+
+        for i, model in enumerate(models):
+            try:
+                result = router.chat(
+                    messages=[{"role": "user", "content": query}],
+                    model=model,
+                    temperature=0.7,
+                )
+                responses.append(CouncilResponse(
+                    model=model,
+                    content=result.content,
+                    label=labels[i],
+                    tokens_used=result.total_tokens,
+                ))
+            except Exception as e:
+                responses.append(CouncilResponse(
+                    model=model,
+                    content=f"[Error: {str(e)}]",
+                    label=labels[i],
+                ))
+
+        # Collect rankings
+        rankings, label_to_model, aggregate = await self._collect_rankings(
+            query, responses, models, router
+        )
+
+        return {
+            "round": 1,
+            "responses": responses,
+            "rankings": rankings,
+            "label_to_model": label_to_model,
+            "aggregate": aggregate,
+        }
+
+    async def _revision_round(
+        self,
+        query: str,
+        models: List[str],
+        router: LLMRouter,
+        labels: str,
+        previous: Dict[str, Any],
+        round_num: int,
+    ) -> Dict[str, Any]:
+        """Execute revision round with context from previous round."""
+        # Get top responses from previous round
+        top_responses = self._get_top_responses(
+            previous["aggregate"],
+            previous["responses"],
+            n=self.show_top_n
+        )
+
+        # Build context for revision
+        context = "\n\n".join([
+            f"Top Response (rank {i+1}, from {r.model}):\n{r.content}"
+            for i, r in enumerate(top_responses)
+        ])
+
+        revision_prompt = f"""Original question: {query}
+
+This is Round {round_num} of deliberation. Top-ranked responses from Round {round_num-1}:
+
+{context}
+
+Based on these top responses, provide your revised answer.
+You may strengthen your position, incorporate valid points from others, or change your approach."""
+
+        # Collect revised responses
+        responses = []
+        for i, model in enumerate(models):
+            try:
+                result = router.chat(
+                    messages=[{"role": "user", "content": revision_prompt}],
+                    model=model,
+                    temperature=0.7,
+                )
+                responses.append(CouncilResponse(
+                    model=model,
+                    content=result.content,
+                    label=labels[i],
+                    tokens_used=result.total_tokens,
+                ))
+            except Exception as e:
+                responses.append(CouncilResponse(
+                    model=model,
+                    content=f"[Error: {str(e)}]",
+                    label=labels[i],
+                ))
+
+        # Collect rankings for revised responses
+        rankings, label_to_model, aggregate = await self._collect_rankings(
+            query, responses, models, router
+        )
+
+        return {
+            "round": round_num,
+            "responses": responses,
+            "rankings": rankings,
+            "label_to_model": label_to_model,
+            "aggregate": aggregate,
+        }
+
+    async def _collect_rankings(
+        self,
+        query: str,
+        responses: List[CouncilResponse],
+        models: List[str],
+        router: LLMRouter,
+    ) -> Tuple[List[CouncilRanking], Dict[str, str], Dict[str, float]]:
+        """Collect rankings from all models."""
+        label_to_model = {r.label: r.model for r in responses}
+
+        anonymous_responses = "\n\n".join([
+            f"Response {r.label}:\n{r.content}"
+            for r in responses
+        ])
+
+        ranking_prompt = f"""Evaluate these responses to: {query}
+
+{anonymous_responses}
+
+FINAL RANKING:
+1. [letter]
+2. [letter]
+...
+
+Brief reasoning:"""
+
+        rankings = []
+        for model in models:
+            try:
+                result = router.chat(
+                    messages=[{"role": "user", "content": ranking_prompt}],
+                    model=model,
+                    temperature=0.3,
+                    max_tokens=300,
+                )
+
+                parsed = self._parse_ranking(result.content, len(responses))
+                rankings.append(CouncilRanking(
+                    model=model,
+                    rankings=parsed,
+                    reasoning=result.content,
+                ))
+            except Exception:
+                pass
+
+        # Calculate aggregate
+        aggregate = self._calculate_aggregate(rankings, label_to_model)
+
+        return rankings, label_to_model, aggregate
+
+    def _parse_ranking(self, text: str, num_responses: int) -> List[str]:
+        """Parse ranking from model output."""
+        match = re.search(r"FINAL RANKING:\s*\n((?:\d+\.\s*[A-Z]\s*\n?)+)", text, re.IGNORECASE)
+        if match:
+            ranking_text = match.group(1)
+            letters = re.findall(r"\d+\.\s*([A-Z])", ranking_text, re.IGNORECASE)
+            return [l.upper() for l in letters[:num_responses]]
+
+        letters = re.findall(r"([A-Z])\s*[,>]?\s*", text.upper())
+        seen = set()
+        result = []
+        for l in letters:
+            if l not in seen and l in "ABCDEFGHIJ":
+                seen.add(l)
+                result.append(l)
+        return result[:num_responses]
+
+    def _calculate_aggregate(
+        self,
+        rankings: List[CouncilRanking],
+        label_to_model: Dict[str, str],
+    ) -> Dict[str, float]:
+        """Calculate aggregate rankings."""
+        model_positions: Dict[str, List[int]] = {m: [] for m in label_to_model.values()}
+
+        for ranking in rankings:
+            for position, label in enumerate(ranking.rankings, start=1):
+                if label in label_to_model:
+                    model = label_to_model[label]
+                    model_positions[model].append(position)
+
+        return {
+            model: sum(pos) / len(pos) if pos else float('inf')
+            for model, pos in model_positions.items()
+        }
+
+    def _get_top_responses(
+        self,
+        aggregate: Dict[str, float],
+        responses: List[CouncilResponse],
+        n: int,
+    ) -> List[CouncilResponse]:
+        """Get top N responses by aggregate ranking."""
+        sorted_responses = sorted(
+            responses,
+            key=lambda r: aggregate.get(r.model, float('inf'))
+        )
+        return sorted_responses[:n]
+
+    async def _synthesize_with_evolution(
+        self,
+        query: str,
+        all_rounds: List[Dict[str, Any]],
+        chairman_model: str,
+        router: LLMRouter,
+    ) -> LLMResponse:
+        """Synthesize final answer considering evolution across rounds."""
+        evolution_text = ""
+        for round_data in all_rounds:
+            round_num = round_data["round"]
+            evolution_text += f"\n=== Round {round_num} ===\n"
+
+            for r in round_data["responses"]:
+                rank = round_data["aggregate"].get(r.model, "N/A")
+                evolution_text += f"\n{r.model} (rank: {rank:.1f}):\n{r.content[:200]}...\n"
+
+        synthesis_prompt = f"""You are the Chairman of an AI Council conducting multi-round deliberation.
+
+Question: {query}
+
+The council completed {len(all_rounds)} rounds. Evolution:
+
+{evolution_text}
+
+Synthesize the final answer considering:
+- How responses evolved across rounds
+- Which insights emerged or strengthened
+- Final consensus rankings
+
+Provide a comprehensive final answer:"""
+
+        return router.chat(
+            messages=[{"role": "user", "content": synthesis_prompt}],
+            model=chairman_model,
+            temperature=0.5,
+        )
+
+
 class Council:
     """
     Multi-LLM council for consensus-based answers.
@@ -369,7 +687,7 @@ class Council:
     ):
         # Default free models for testing
         self.models = models or [
-            "meta-llama/llama-3.2-3b-instruct:free",
+            "google/gemma-3n-e2b-it:free",
             "qwen/qwen3-coder:free",
         ]
         self.chairman = chairman or self.models[0]
@@ -379,6 +697,8 @@ class Council:
         self._strategies: Dict[str, ConsensusStrategy] = {
             "simple_ranking": SimpleRankingStrategy(),
             "weighted_voting": WeightedVotingStrategy(),
+            "multi_round": MultiRoundStrategy(),
+            "multi_round_3": MultiRoundStrategy(rounds=3),
         }
         self.strategy = self._strategies.get(strategy, SimpleRankingStrategy())
 

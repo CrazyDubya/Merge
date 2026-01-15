@@ -42,7 +42,7 @@ class OpenRouterBackend:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        default_model: str = "meta-llama/llama-3.2-3b-instruct:free",
+        default_model: str = "google/gemma-3n-e2b-it:free",  # Updated Jan 2026
         timeout: float = 120.0,
     ):
         self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")
@@ -157,14 +157,61 @@ class OpenRouterBackend:
 
         return self._parse_response(data)
 
-    async def chat_stream(
+    def chat_stream(
         self,
         messages: List[Dict[str, str]],
         model: Optional[str] = None,
         temperature: float = 0.7,
         max_tokens: int = 2048,
-    ) -> AsyncGenerator[str, None]:
-        """Stream chat completion tokens."""
+    ):
+        """
+        Stream chat completion tokens (synchronous generator).
+
+        Yields OpenRouterResponse objects with partial content.
+        """
+        payload = self._build_request(
+            messages=messages,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            stream=True,
+        )
+
+        with httpx.Client(timeout=self.timeout) as client:
+            with client.stream(
+                "POST",
+                f"{self.BASE_URL}/chat/completions",
+                headers=self._get_headers(),
+                json=payload,
+            ) as response:
+                response.raise_for_status()
+                for line in response.iter_lines():
+                    if line.startswith("data: "):
+                        data = line[6:]
+                        if data == "[DONE]":
+                            break
+                        try:
+                            chunk = json.loads(data)
+                            if content := chunk.get("choices", [{}])[0].get(
+                                "delta", {}
+                            ).get("content"):
+                                yield OpenRouterResponse(
+                                    content=content,
+                                    model=chunk.get("model", self.default_model),
+                                    usage={},
+                                    finish_reason="",
+                                )
+                        except json.JSONDecodeError:
+                            continue
+
+    async def chat_stream_async(
+        self,
+        messages: List[Dict[str, str]],
+        model: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: int = 2048,
+    ) -> AsyncGenerator[OpenRouterResponse, None]:
+        """Stream chat completion tokens (asynchronous generator)."""
         payload = self._build_request(
             messages=messages,
             model=model,
@@ -191,7 +238,12 @@ class OpenRouterBackend:
                             if content := chunk.get("choices", [{}])[0].get(
                                 "delta", {}
                             ).get("content"):
-                                yield content
+                                yield OpenRouterResponse(
+                                    content=content,
+                                    model=chunk.get("model", self.default_model),
+                                    usage={},
+                                    finish_reason="",
+                                )
                         except json.JSONDecodeError:
                             continue
 
