@@ -91,8 +91,13 @@ class Agent:
         user_message: str,
         include_history: bool = True,
     ) -> List[Dict[str, str]]:
-        """Format messages for LLM request."""
-        messages = [{"role": "system", "content": self._build_system_prompt()}]
+        """Format messages for LLM request.
+
+        Note: Some free models (e.g., google/gemma) don't support system messages.
+        We prepend system content to the first user message for compatibility.
+        """
+        system_prompt = self._build_system_prompt()
+        messages = []
 
         # Include conversation history (respecting context limits)
         if include_history and self.state.messages:
@@ -101,7 +106,14 @@ class Agent:
             for msg in self.state.messages[-max_history:]:
                 messages.append({"role": msg.role, "content": msg.content})
 
-        messages.append({"role": "user", "content": user_message})
+        # Prepend system prompt to first user message for model compatibility
+        if not messages:
+            # First message - include system prompt
+            user_content = f"[Context: {system_prompt}]\n\n{user_message}"
+        else:
+            user_content = user_message
+
+        messages.append({"role": "user", "content": user_content})
         return messages
 
     def step(self, user_message: str) -> "LLMResponse":

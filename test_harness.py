@@ -141,8 +141,8 @@ def test_different_models():
 
     # Currently available free models (Jan 2026)
     free_models = [
-        "meta-llama/llama-3.2-3b-instruct:free",
-        "qwen/qwen3-coder:free",
+        "google/gemma-3n-e2b-it:free",
+        "nvidia/nemotron-nano-9b-v2:free",
     ]
 
     router = LLMRouter()

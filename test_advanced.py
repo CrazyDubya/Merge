@@ -123,10 +123,10 @@ def test_council_basic():
         # Create council with free models
         council = Council(
             models=[
-                "meta-llama/llama-3.2-3b-instruct:free",
+                "google/gemma-3n-e2b-it:free",
                 "qwen/qwen3-coder:free",
             ],
-            chairman="meta-llama/llama-3.2-3b-instruct:free",
+            chairman="google/gemma-3n-e2b-it:free",
         )
 
         print("Council models:", council.models)

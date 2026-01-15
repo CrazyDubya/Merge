@@ -42,7 +42,7 @@ class OpenRouterBackend:
     def __init__(
         self,
         api_key: Optional[str] = None,
-        default_model: str = "meta-llama/llama-3.2-3b-instruct:free",
+        default_model: str = "google/gemma-3n-e2b-it:free",  # Updated Jan 2026
         timeout: float = 120.0,
     ):
         self.api_key = api_key or os.getenv("OPENROUTER_API_KEY")

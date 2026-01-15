@@ -34,7 +34,7 @@ def test_free_models_comparison():
     print("=" * 60)
 
     free_models = [
-        "meta-llama/llama-3.2-3b-instruct:free",
+        "google/gemma-3n-e2b-it:free",
         "moonshotai/kimi-k2:free",
         "nvidia/nemotron-nano-9b-v2:free",
         "google/gemma-3n-e2b-it:free",
@@ -219,10 +219,10 @@ def test_council_strategies():
 
     council = Council(
         models=[
-            "meta-llama/llama-3.2-3b-instruct:free",
+            "google/gemma-3n-e2b-it:free",
             "moonshotai/kimi-k2:free",
         ],
-        chairman="meta-llama/llama-3.2-3b-instruct:free",
+        chairman="google/gemma-3n-e2b-it:free",
     )
 
     print(f"Question: {question}")

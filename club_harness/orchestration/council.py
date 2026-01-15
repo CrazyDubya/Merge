@@ -687,7 +687,7 @@ class Council:
     ):
         # Default free models for testing
         self.models = models or [
-            "meta-llama/llama-3.2-3b-instruct:free",
+            "google/gemma-3n-e2b-it:free",
             "qwen/qwen3-coder:free",
         ]
         self.chairman = chairman or self.models[0]

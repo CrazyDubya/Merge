@@ -78,7 +78,7 @@ Synthesize the best combined strategy:"""
         try:
             synthesis = router.chat(
                 messages=[{"role": "user", "content": synthesis_prompt}],
-                model="meta-llama/llama-3.2-3b-instruct:free",
+                model="google/gemma-3n-e2b-it:free",
                 max_tokens=400,
             )
             print(f"\nSynthesized Strategy:\n{synthesis.content}")
@@ -132,7 +132,7 @@ TOTAL COST: $X/month"""
         print("Generating plan...")
         response = router.chat(
             messages=[{"role": "user", "content": planning_prompt}],
-            model="meta-llama/llama-3.2-3b-instruct:free",
+            model="google/gemma-3n-e2b-it:free",
             max_tokens=500,
         )
         print(f"\nPlanning Response:\n{response.content}")
@@ -229,10 +229,10 @@ def test_multi_round_council_complex():
     # Use multi-round strategy for better quality
     council = Council(
         models=[
-            "meta-llama/llama-3.2-3b-instruct:free",
+            "google/gemma-3n-e2b-it:free",
             "google/gemma-3n-e2b-it:free",
         ],
-        chairman="meta-llama/llama-3.2-3b-instruct:free",
+        chairman="google/gemma-3n-e2b-it:free",
         strategy="multi_round",
     )
 
@@ -292,7 +292,7 @@ Show your reasoning at each step."""
         print("Testing chain-of-thought reasoning...")
         response = router.chat(
             messages=[{"role": "user", "content": cot_prompt}],
-            model="meta-llama/llama-3.2-3b-instruct:free",
+            model="google/gemma-3n-e2b-it:free",
             max_tokens=300,
         )
         print(f"\nResponse:\n{response.content}")

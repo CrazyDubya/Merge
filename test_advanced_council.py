@@ -26,7 +26,7 @@ def test_multi_round_deliberation():
 
     router = LLMRouter()
     models = [
-        "meta-llama/llama-3.2-3b-instruct:free",
+        "google/gemma-3n-e2b-it:free",
         "google/gemma-3n-e2b-it:free",
     ]
 
@@ -103,7 +103,7 @@ After two rounds of deliberation, here are the final responses:
 Synthesize these perspectives into a single, comprehensive final answer:"""
 
     try:
-        chairman_model = "meta-llama/llama-3.2-3b-instruct:free"
+        chairman_model = "google/gemma-3n-e2b-it:free"
         synthesis = router.chat(
             messages=[{"role": "user", "content": synthesis_prompt}],
             model=chairman_model,
@@ -149,7 +149,7 @@ Format: [Answer] | Confidence: [1-10]"""
 
             response = router.chat(
                 messages=[{"role": "user", "content": prompt}],
-                model="meta-llama/llama-3.2-3b-instruct:free",
+                model="google/gemma-3n-e2b-it:free",
                 max_tokens=100,
             )
             print(f"Response: {response.content}")
@@ -182,7 +182,7 @@ def test_response_similarity():
             print(f"\nQuestion: {q}")
             response = router.chat(
                 messages=[{"role": "user", "content": q}],
-                model="meta-llama/llama-3.2-3b-instruct:free",
+                model="google/gemma-3n-e2b-it:free",
                 max_tokens=100,
             )
             responses.append((q, response.content))
