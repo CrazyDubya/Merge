@@ -16,7 +16,7 @@ from typing import Any, Callable, Dict, List, Optional
 class LLMConfig:
     """LLM provider configuration."""
     provider: str = "openrouter"
-    model: str = "google/gemma-3n-e2b-it:free"  # Updated Jan 2026
+    model: str = "mistralai/devstral-2512:free"  # Reliable free model with text output Jan 2026
     temperature: float = 0.7
     max_tokens: int = 2048
     api_key: Optional[str] = None

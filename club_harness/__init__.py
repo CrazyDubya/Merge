@@ -29,7 +29,7 @@ from .core.config import config
 from .memory.memory import Memory, EpisodicMemory, LessonMemory
 
 # Planning
-from .planning.goap import GOAPPlanner, WorldState, GOAPAction
+from .planning.goap import Planner as GOAPPlanner, WorldState, Action as GOAPAction
 
 # Verification
 from .verification.checks import (
