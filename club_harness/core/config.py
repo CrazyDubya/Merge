@@ -16,7 +16,7 @@ from typing import Any, Callable, Dict, List, Optional
 class LLMConfig:
     """LLM provider configuration."""
     provider: str = "openrouter"
-    model: str = "mistralai/devstral-2512:free"  # Reliable free model with text output Jan 2026
+    model: str = "meta-llama/llama-3.1-8b-instruct"  # Reliable cheap model Jan 2026
     temperature: float = 0.7
     max_tokens: int = 2048
     api_key: Optional[str] = None
@@ -58,28 +58,28 @@ class Config:
     execution: ExecutionConfig = field(default_factory=ExecutionConfig)
 
     # Model tiers for cost-aware routing (hivey-inspired)
-    # Updated Jan 2026 with currently available free models
+    # Updated Jan 2026 with verified available models
     model_tiers: Dict[str, List[str]] = field(default_factory=lambda: {
         "free": [
+            "mistralai/devstral-2512:free",
             "google/gemma-3n-e2b-it:free",
             "qwen/qwen3-coder:free",
-            "moonshotai/kimi-k2:free",
-            "nvidia/nemotron-nano-9b-v2:free",
-            "mistralai/devstral-2512:free",
+            "arcee-ai/trinity-mini:free",
         ],
         "cheap": [
-            "google/gemini-2.0-flash-001",
-            "anthropic/claude-3-haiku",
-            "openai/gpt-4o-mini",
+            "meta-llama/llama-3.1-8b-instruct",
+            "mistralai/mistral-nemo",
+            "google/gemma-3-12b-it",
+            "qwen/qwen2.5-coder-7b-instruct",
         ],
         "standard": [
-            "google/gemini-2.0-pro",
             "anthropic/claude-3.5-sonnet",
             "openai/gpt-4o",
+            "google/gemini-2.0-flash-001",
         ],
         "reasoning": [
-            "openai/o1-mini",
             "deepseek/deepseek-r1",
+            "openai/o1-mini",
         ],
         "advanced": [
             "anthropic/claude-3-opus",
