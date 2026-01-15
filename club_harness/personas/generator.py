@@ -1,22 +1,8 @@
 """
 Demographic Persona Generator for Club Harness.
-
-Generates realistic agent personas with demographic attributes, personality traits,
-and behavioral patterns for simulation and testing.
-
-Inspired by repos/TinyTroupe/tinytroupe/persona_generator.py
-
-Features:
-- Big Five personality trait model
-- Demographic distributions
-- Behavioral tendency generation
-- Persona consistency validation
-- Persona presets for common use cases
 """
 
 import random
-import hashlib
-import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum

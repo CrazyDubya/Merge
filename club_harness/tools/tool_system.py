@@ -1,10 +1,5 @@
 """
 Tool system for Club Harness.
-
-Combines patterns from:
-- qwen-code: Tool invocation with confirmation
-- Agentic-Hub: Universal command protocol
-- 12-factor: Tools as structured outputs
 """
 
 import json
@@ -13,6 +8,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional, Union
+
+from ..core.types import ToolCall, ToolResult
 
 
 @dataclass
@@ -26,31 +23,8 @@ class ToolParameter:
     enum: Optional[List[Any]] = None
 
 
-@dataclass
-class ToolResult:
-    """Result of tool execution."""
-    success: bool
-    output: Any
-    error: Optional[str] = None
-    execution_time: float = 0.0
-    tool_name: str = ""
-    timestamp: datetime = field(default_factory=datetime.now)
-
-
-@dataclass
-class ToolCall:
-    """A request to execute a tool."""
-    id: str
-    name: str
-    arguments: Dict[str, Any]
-
-
 class Tool(ABC):
-    """
-    Abstract base class for tools.
-
-    Inspired by qwen-code's tool architecture.
-    """
+    """Abstract base class for tools."""
 
     name: str
     description: str

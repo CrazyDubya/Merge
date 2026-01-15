@@ -1,10 +1,5 @@
 """
 Council consensus system for multi-LLM deliberation.
-
-Implements patterns from llm-council:
-- Anonymous peer review
-- Multiple consensus strategies
-- Chairman synthesis
 """
 
 import asyncio
@@ -15,6 +10,44 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 from ..llm.router import LLMRouter, LLMResponse, router
+
+
+def _parse_ranking(text: str, num_responses: int) -> List[str]:
+    """Parse ranking from model output."""
+    match = re.search(r"FINAL RANKING:\s*\n((?:\d+\.\s*[A-Z]\s*\n?)+)", text, re.IGNORECASE)
+    if match:
+        ranking_text = match.group(1)
+        letters = re.findall(r"\d+\.\s*([A-Z])", ranking_text, re.IGNORECASE)
+        return [l.upper() for l in letters[:num_responses]]
+
+    # Fallback: find any ordered list of letters
+    letters = re.findall(r"([A-Z])\s*[,>]?\s*", text.upper())
+    seen = set()
+    result = []
+    for l in letters:
+        if l not in seen and l in "ABCDEFGHIJ":
+            seen.add(l)
+            result.append(l)
+    return result[:num_responses]
+
+
+def _calculate_aggregate_rankings(
+    rankings: List["CouncilRanking"],
+    label_to_model: Dict[str, str],
+) -> Dict[str, float]:
+    """Calculate average rank for each model."""
+    model_positions: Dict[str, List[int]] = {m: [] for m in label_to_model.values()}
+
+    for ranking in rankings:
+        for position, label in enumerate(ranking.rankings, start=1):
+            if label in label_to_model:
+                model = label_to_model[label]
+                model_positions[model].append(position)
+
+    return {
+        model: sum(pos) / len(pos) if pos else float('inf')
+        for model, pos in model_positions.items()
+    }
 
 
 @dataclass
@@ -93,7 +126,7 @@ class SimpleRankingStrategy(ConsensusStrategy):
         )
 
         # Calculate aggregate rankings
-        aggregate = self._calculate_aggregate_rankings(stage2, label_to_model)
+        aggregate = _calculate_aggregate_rankings(stage2, label_to_model)
 
         # Stage 3: Chairman synthesis
         stage3 = await self._stage3_synthesis(
@@ -195,62 +228,16 @@ Then briefly explain your reasoning."""
                     max_tokens=500,
                 )
 
-                # Parse ranking
-                parsed = self._parse_ranking(result.content, len(responses))
+                parsed = _parse_ranking(result.content, len(responses))
                 rankings.append(CouncilRanking(
                     model=model,
                     rankings=parsed,
                     reasoning=result.content,
                 ))
             except Exception:
-                # Skip failed rankings
                 pass
 
         return rankings, label_to_model
-
-    def _parse_ranking(self, text: str, num_responses: int) -> List[str]:
-        """Parse ranking from model output."""
-        # Look for FINAL RANKING section
-        match = re.search(r"FINAL RANKING:\s*\n((?:\d+\.\s*[A-Z]\s*\n?)+)", text, re.IGNORECASE)
-        if match:
-            ranking_text = match.group(1)
-            # Extract letters
-            letters = re.findall(r"\d+\.\s*([A-Z])", ranking_text, re.IGNORECASE)
-            return [l.upper() for l in letters[:num_responses]]
-
-        # Fallback: find any ordered list of letters
-        letters = re.findall(r"([A-Z])\s*[,>]?\s*", text.upper())
-        seen = set()
-        result = []
-        for l in letters:
-            if l not in seen and l in "ABCDEFGHIJ":
-                seen.add(l)
-                result.append(l)
-        return result[:num_responses]
-
-    def _calculate_aggregate_rankings(
-        self,
-        rankings: List[CouncilRanking],
-        label_to_model: Dict[str, str],
-    ) -> Dict[str, float]:
-        """Calculate average rank for each model."""
-        model_positions: Dict[str, List[int]] = {m: [] for m in label_to_model.values()}
-
-        for ranking in rankings:
-            for position, label in enumerate(ranking.rankings, start=1):
-                if label in label_to_model:
-                    model = label_to_model[label]
-                    model_positions[model].append(position)
-
-        # Calculate averages
-        result = {}
-        for model, positions in model_positions.items():
-            if positions:
-                result[model] = sum(positions) / len(positions)
-            else:
-                result[model] = float('inf')
-
-        return result
 
     async def _stage3_synthesis(
         self,
@@ -567,7 +554,7 @@ Brief reasoning:"""
                     max_tokens=300,
                 )
 
-                parsed = self._parse_ranking(result.content, len(responses))
+                parsed = _parse_ranking(result.content, len(responses))
                 rankings.append(CouncilRanking(
                     model=model,
                     rankings=parsed,
@@ -576,46 +563,8 @@ Brief reasoning:"""
             except Exception:
                 pass
 
-        # Calculate aggregate
-        aggregate = self._calculate_aggregate(rankings, label_to_model)
-
+        aggregate = _calculate_aggregate_rankings(rankings, label_to_model)
         return rankings, label_to_model, aggregate
-
-    def _parse_ranking(self, text: str, num_responses: int) -> List[str]:
-        """Parse ranking from model output."""
-        match = re.search(r"FINAL RANKING:\s*\n((?:\d+\.\s*[A-Z]\s*\n?)+)", text, re.IGNORECASE)
-        if match:
-            ranking_text = match.group(1)
-            letters = re.findall(r"\d+\.\s*([A-Z])", ranking_text, re.IGNORECASE)
-            return [l.upper() for l in letters[:num_responses]]
-
-        letters = re.findall(r"([A-Z])\s*[,>]?\s*", text.upper())
-        seen = set()
-        result = []
-        for l in letters:
-            if l not in seen and l in "ABCDEFGHIJ":
-                seen.add(l)
-                result.append(l)
-        return result[:num_responses]
-
-    def _calculate_aggregate(
-        self,
-        rankings: List[CouncilRanking],
-        label_to_model: Dict[str, str],
-    ) -> Dict[str, float]:
-        """Calculate aggregate rankings."""
-        model_positions: Dict[str, List[int]] = {m: [] for m in label_to_model.values()}
-
-        for ranking in rankings:
-            for position, label in enumerate(ranking.rankings, start=1):
-                if label in label_to_model:
-                    model = label_to_model[label]
-                    model_positions[model].append(position)
-
-        return {
-            model: sum(pos) / len(pos) if pos else float('inf')
-            for model, pos in model_positions.items()
-        }
 
     def _get_top_responses(
         self,
@@ -713,7 +662,7 @@ class Council:
 
     def deliberate_sync(self, query: str) -> CouncilResult:
         """Synchronous wrapper for deliberation."""
-        return asyncio.get_event_loop().run_until_complete(self.deliberate(query))
+        return asyncio.run(self.deliberate(query))
 
     def quick_consensus(self, query: str) -> str:
         """Quick synchronous consensus - returns just the final answer."""

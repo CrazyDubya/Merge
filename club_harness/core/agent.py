@@ -1,11 +1,5 @@
 """
 Unified Agent for Club Harness.
-
-Combines patterns from:
-- TinyTroupe: Persona-based agents with memory
-- LisaSimpson: Deliberative planning with confidence
-- qwen-code: Turn-based execution loop
-- 12-factor: Stateless reducer pattern
 """
 
 from dataclasses import dataclass, field
@@ -225,11 +219,7 @@ class Agent:
 
 
 class AgentBuilder:
-    """
-    Fluent builder for creating agents.
-
-    Inspired by LisaSimpson's builder pattern.
-    """
+    """Fluent builder for creating agents."""
 
     def __init__(self, name: str):
         self._name = name
