@@ -24,7 +24,7 @@ lxml==4.9.3
 
 # Machine Learning & AI (for task classification)
 transformers==4.36.0
-torch==2.1.1
+torch>=2.2.0
 numpy==1.25.2
 scikit-learn==1.3.2
 
