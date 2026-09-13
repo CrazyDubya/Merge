@@ -9,7 +9,8 @@ sys.path.insert(0, '../../tinytroupe/')
 sys.path.insert(0, '../../')
 sys.path.insert(0, '..')
 
-import tinytroupe.openai_utils as openai_utils
+from tinytroupe.clients import client, force_api_cache
+from tinytroupe import control
 from tinytroupe.agent import TinyPerson
 from tinytroupe.environment import TinyWorld, TinySocialNetwork
 from tinytroupe.factory import TinyPersonFactory
@@ -22,22 +23,17 @@ import conftest
 ##################################################
 # global constants
 ##################################################
-CACHE_FILE_NAME = "tests_cache.pickle"
 EXPORT_BASE_FOLDER = os.path.join(os.path.dirname(__file__), "outputs/exports")
 TEMP_SIMULATION_CACHE_FILE_NAME = os.path.join(os.path.dirname(__file__), "simulation_test_case.cache.json")
 
+# Fixed datetime used by TinyWorld in tests to ensure API cache keys remain
+# stable across CI runs.  Without this, datetime.now() would produce a
+# different system prompt on each run, invalidating cached LLM responses.
+from datetime import datetime as _dt
+FIXED_TEST_DATETIME = _dt(2025, 1, 1, 12, 0, 0)
 
-##################################################
-# Caching, in order to save on API usage
-##################################################
-if conftest.refresh_cache:
-    # DELETE the cache file tests_cache.pickle
-    os.remove(CACHE_FILE_NAME)
-
-if conftest.use_cache:
-    openai_utils.force_api_cache(True, CACHE_FILE_NAME)
-else:
-    openai_utils.force_api_cache(False, CACHE_FILE_NAME)
+# Note: API caching is now configured in conftest.py via pytest_configure hook
+# to ensure CLI options (--use_cache, --refresh_cache) are parsed before configuration
 
 
 ##################################################
@@ -135,7 +131,7 @@ def proposition_holds(proposition: str) -> bool:
                 {"role": "user", "content": user_prompt}]
     
     # call the LLM
-    next_message = openai_utils.client().send_message(messages)
+    next_message = client().send_message(messages)
 
     # check the result
     cleaned_message = only_alphanumeric(next_message["content"])
@@ -210,11 +206,22 @@ def focus_group_world():
     world = TinyWorld("Focus group", [examples.create_lisa_the_data_scientist(), examples.create_oscar_the_architect(), examples.create_marcos_the_physician()])
     return world
 
-@pytest.fixture(scope="function")
+#
+# This always runs before tests to ensure entities are reset
+#
+@pytest.fixture(scope="function", autouse=True)
 def setup():
+    control.reset()
     TinyPerson.clear_agents()
     TinyWorld.clear_environments()
     TinyFactory.clear_factories()
     TinyPersonFactory.clear_factories()
 
+    # Pin TinyWorld's default datetime so that agent prompts (which include
+    # the current datetime) produce stable API cache keys across test runs.
+    TinyWorld.default_initial_datetime = FIXED_TEST_DATETIME
+
     yield
+
+    # Restore production default after each test
+    TinyWorld.default_initial_datetime = None

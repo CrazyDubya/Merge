@@ -1,11 +1,15 @@
-from tinytroupe.agent import logger, default, Self, AgentOrWorld, CognitiveActionModel
+from tinytroupe import config_manager, default
+from tinytroupe.agent import logger, Self, AgentOrWorld, CognitiveActionModel
 from tinytroupe.agent.memory import EpisodicMemory, SemanticMemory, EpisodicConsolidator
-import tinytroupe.openai_utils as openai_utils
+from tinytroupe.clients import client
+from tinytroupe import openai_utils
 from tinytroupe.utils import JsonSerializableRegistry, repeat_on_error, name_or_empty
 import tinytroupe.utils as utils
 from tinytroupe.control import transactional, current_simulation
-from tinytroupe import config_manager
 
+import copy
+import hashlib
+import json
 import os
 import json
 import copy
@@ -40,10 +44,31 @@ class TinyPerson(JsonSerializableRegistry):
     MIN_EPISODE_LENGTH = config_manager.get("min_episode_length", 15)  # The minimum number of messages in an episode before it is considered valid.
     MAX_EPISODE_LENGTH = config_manager.get("max_episode_length", 50)  # The maximum number of messages in an episode before it is considered valid.
 
+    # Maximum number of recent image-bearing stimuli to re-inject as user
+    # messages each turn, enabling agents to re-examine previously seen images.
+    # The most recent stimuli are kept (recency bias — Murdock, 1962).
+    MAX_IMAGE_STIMULI_TO_RECALL = config_manager.get(
+        "max_image_stimuli_to_recall", 3
+    )
+
     PP_TEXT_WIDTH = 100
 
-    serializable_attributes = ["_persona", "_mental_state", "_mental_faculties", "_current_episode_event_count", "episodic_memory", "semantic_memory"]
-    serializable_attributes_renaming = {"_mental_faculties": "mental_faculties", "_persona": "persona", "_mental_state": "mental_state", "_current_episode_event_count": "current_episode_event_count"}
+    serializable_attributes = [
+        "_persona",
+        "_mental_state",
+        "_mental_faculties",
+        "_current_episode_event_count",
+        "episodic_memory",
+        "semantic_memory",
+        "_image_registry",
+        "_image_id_counter",
+    ]
+    serializable_attributes_renaming = {
+        "_mental_faculties": "mental_faculties",
+        "_persona": "persona",
+        "_mental_state": "mental_state",
+        "_current_episode_event_count": "current_episode_event_count",
+    }
 
     # A dict of all agents instantiated so far.
     all_agents = {}  # name -> agent
@@ -215,6 +240,17 @@ class TinyPerson(JsonSerializableRegistry):
             self._memory_lock = threading.RLock()  # Separate lock for memory operations
         if not hasattr(self, '_consolidation_lock'):
             self._consolidation_lock = threading.Lock()  # Lock for consolidation operations
+        # Image registry for the vision modality: maps image IDs (e.g. "img_1") to
+        # their original references (file paths or URLs).  Persisted across serialization.
+        if not hasattr(self, "_image_registry"):
+            self._image_registry: dict[str, str] = {}
+        if not hasattr(self, "_image_id_counter"):
+            self._image_id_counter: int = 0
+
+        # Class-level cache for LLM-generated image descriptions, keyed by content hash.
+        # Shared across all agents to avoid redundant vision API calls for the same image.
+        if not hasattr(TinyPerson, "_image_description_cache"):
+            TinyPerson._image_description_cache: dict[str, str] = {}
 
         self._prompt_template_path = os.path.join(
             os.path.dirname(__file__), "prompts/tiny_person.mustache"
@@ -290,6 +326,50 @@ class TinyPerson(JsonSerializableRegistry):
         template_variables = utils.add_rai_template_variables_if_enabled(template_variables)
 
         return chevron.render(agent_prompt_template, template_variables)
+
+    def _render_recent_episodic_memories_for_prompt(self) -> str:
+        """
+        Builds a concise text block describing recent episodic events (oldest to newest),
+        suitable to be embedded inside the system prompt.
+        """
+        max_len = config_manager.get("max_content_display_length")
+        episodes = self.retrieve_recent_memories(max_content_length=max_len)
+        if not episodes:
+            return "(No recent episodic memories available)"
+
+        lines = []
+        for msg in episodes:
+            try:
+                role = msg.get("role")
+                timestamp = msg.get("simulation_timestamp", None)
+                timestamp_str = f" [@{timestamp}]" if timestamp else ""
+                if role == "user":
+                    for s in msg.get("content", {}).get("stimuli", []):
+                        src = s.get("source") or "ENV"
+                        typ = s.get("type", "?")
+                        cnt = utils.break_text_at_length(
+                            s.get("content", ""), max_length=max_len
+                        )
+                        # Note image IDs without re-injecting actual image data
+                        image_ids = s.get("images")
+                        img_note = f" [images: {', '.join(image_ids)}]" if image_ids else ""
+                        lines.append(
+                            f"- [STIMULUS:{typ}] from {src}{timestamp_str}: {cnt}{img_note}"
+                        )
+                elif role == "assistant":
+                    action = msg.get("content", {}).get("action", {}) or {}
+                    typ = action.get("type", "?")
+                    tgt = action.get("target") or ""
+                    cnt = utils.break_text_at_length(
+                        action.get("content", "") or "", max_length=max_len
+                    )
+                    target_str = f" to {tgt}" if tgt else ""
+                    lines.append(f"- [ACTION:{typ}]{target_str}{timestamp_str}: {cnt}")
+                # system messages are ignored in the episodic memory prompt
+            except Exception:
+                continue
+
+        return "\n".join(lines) if lines else "(No recent episodic memories available)"
 
     def reset_prompt(self):
 
@@ -535,7 +615,8 @@ class TinyPerson(JsonSerializableRegistry):
         Args:
             until_done (bool): Whether to keep acting until the agent is done and needs additional stimuli.
             n (int): The number of actions to perform. Defaults to None.
-            return_actions (bool): Whether to return the actions or not. Defaults to False.
+            return_actions (bool): Whether to return the actions list. Use True when you need
+                the actions (e.g. epic simulations, scripts). Defaults to False (returns self for chaining).
             max_content_length (int): The maximum length of the content to display. Defaults to None, which uses the global configuration value.
             communication_display (bool): Whether to display the communication or not, will override the global setting if provided. Defaults to None.
         """
@@ -547,14 +628,6 @@ class TinyPerson(JsonSerializableRegistry):
 
         contents = []
 
-        # A separate function to run before each action, which is not meant to be repeated in case of errors.
-        def aux_pre_act():
-            # TODO maybe we don't need this at all anymore?
-            #
-            # A quick thought before the action. This seems to help with better model responses, perhaps because
-            # it interleaves user with assistant messages.
-            pass # self.think("I will now think, reflect and act a bit, and then issue DONE.")        
-
         # Aux function to perform exactly one action.
         # Occasionally, the model will return JSON missing important keys, so we just ask it to try again
         # Sometimes `content` contains EpisodicMemory's MEMORY_BLOCK_OMISSION_INFO message, which raises a TypeError on line 443
@@ -563,26 +636,33 @@ class TinyPerson(JsonSerializableRegistry):
             # ensure we have the latest prompt (initial system message + selected messages from memory)
             self.reset_prompt()
             
-            action, role, content, all_negative_feedbacks = self.action_generator.generate_next_action(self, self.current_messages)
-            logger.debug(f"{self.name}'s action: {action}")
+            action_or_actions, role, content, all_negative_feedbacks = self.action_generator.generate_next_action(self, self.current_messages)
+            # Normalize: multi-action returns a list; ensure we have a list to iterate
+            if isinstance(action_or_actions, list):
+                actions_to_process = action_or_actions
+            else:
+                actions_to_process = [action_or_actions]
+            logger.debug(f"{self.name}'s action: {action_or_actions}")
 
-            # check the next action similarity, and if it is too similar, put a system warning instruction in memory too
-            next_action_similarity = utils.next_action_jaccard_similarity(self, action)
+            # Process each action in the batch (multi-action output)
+            processed_actions = []
+            for idx, action in enumerate(actions_to_process):
+                if not isinstance(action, dict):
+                    continue
+                # check the next action similarity, and if it is too similar, put a system warning instruction in memory too
+                # exempt tool actions (e.g. WRITE_DOCUMENT) - replacing them would discard side effects
+                action_type = action.get("type", "")
+                skip_similarity_replacement = action_type == "WRITE_DOCUMENT"
+                next_action_similarity = utils.next_action_jaccard_similarity(self, action)
 
-            # we have a redundant repetition check here, because this an be computed quickly and is often very useful.
-            if self.enable_basic_action_repetition_prevention and \
-               (TinyPerson.MAX_ACTION_SIMILARITY is not None) and (next_action_similarity > TinyPerson.MAX_ACTION_SIMILARITY):
-                
-                logger.warning(f"[{self.name}] Action similarity is too high ({next_action_similarity}), replacing it with DONE.")
+                # we have a redundant repetition check here, because this an be computed quickly and is often very useful.
+                if not skip_similarity_replacement and self.enable_basic_action_repetition_prevention and \
+                   (TinyPerson.MAX_ACTION_SIMILARITY is not None) and (next_action_similarity > TinyPerson.MAX_ACTION_SIMILARITY):
 
-                # replace the action with a DONE
-                action = {"type": "DONE", "content": "", "target": ""}
-                content["action"] = action	
-                content["cognitive_state"] = {}
-
-                self.store_in_memory({'role': 'system', 
-                                    'content': \
-                                        f"""
+                    logger.warning(f"[{self.name}] Action similarity is too high ({next_action_similarity}), replacing it with DONE.")
+                    action = {"type": "DONE", "content": "", "target": ""}
+                    self.store_in_memory({'role': 'system',
+                                        'content': f"""
                                         # EXCESSIVE ACTION SIMILARITY WARNING
 
                                         You were about to generate a repetitive action (jaccard similarity = {next_action_similarity}).
@@ -593,39 +673,46 @@ class TinyPerson(JsonSerializableRegistry):
                                         - produce more diverse actions.
                                         - aggregate similar actions into a single, larger, action and produce it all at once.
                                         - as a **last resort only**, you may simply not acting at all by issuing a DONE.
-
-                                        
                                         """,
-                                    'type': 'feedback',
-                                    'simulation_timestamp': self.iso_datetime()})
+                                        'type': 'feedback',
+                                        'simulation_timestamp': self.iso_datetime()})
+                processed_actions.append(action)
 
-            # All checks done, we can commit the action to memory.
-            self.store_in_memory({'role': role, 'content': content,
+            # Build content for storage: ensure "action" exists for loop termination check
+            last_action = processed_actions[-1] if processed_actions else {"type": "DONE", "content": "", "target": ""}
+            cognitive_state = content.get("cognitive_state", {})
+
+            # Store full batch in memory once
+            content_to_store = {**content, "action": last_action} if "action" not in content else content
+            self.store_in_memory({'role': role, 'content': content_to_store,
                                     'type': 'action',
                                     'simulation_timestamp': self.iso_datetime()})
 
             # Thread-safe state modifications
             with self._state_lock:
-                self._actions_buffer.append(action)
+                for action in processed_actions:
+                    self._actions_buffer.append(action)
 
-                if "cognitive_state" in content:
-                    cognitive_state = content["cognitive_state"]
+                if cognitive_state:
                     logger.debug(f"[{self.name}] Cognitive state: {cognitive_state}")
-
                     self._update_cognitive_state(goals=cognitive_state.get("goals", None),
                                                  context=cognitive_state.get("context", None),
                                                  attention=cognitive_state.get("emotions", None),
                                                  emotions=cognitive_state.get("emotions", None))
 
-            contents.append(content)
-            if utils.first_non_none(communication_display, TinyPerson.communication_display):
-                self._display_communication(role=role, content=content, kind='action', simplified=True, max_content_length=max_content_length)
+            # Append one content per action so contains_action_type etc. can find each (e.g. WRITE_DOCUMENT)
+            for action in processed_actions:
+                item = {"action": action, "cognitive_state": cognitive_state}
+                contents.append(item)
+                if utils.first_non_none(communication_display, TinyPerson.communication_display):
+                    self._display_communication(role=role, content=item, kind='action', simplified=True, max_content_length=max_content_length)
+            if not processed_actions:
+                contents.append({"action": last_action, "cognitive_state": cognitive_state})
 
-            #
-            # Some actions induce an immediate stimulus or other side-effects. We need to process them here, by means of the mental faculties.
-            #
-            for faculty in self._mental_faculties:
-                faculty.process_action(self, action)
+            # Some actions induce an immediate stimulus or other side-effects. Process each via mental faculties.
+            for action in processed_actions:
+                for faculty in self._mental_faculties:
+                    faculty.process_action(self, action)
             
             #
             # turns all_negative_feedbacks list into a system message
@@ -669,7 +756,6 @@ class TinyPerson(JsonSerializableRegistry):
         ##### Option 1: run N actions ######
         if n is not None:
             for i in range(n):
-                aux_pre_act()
                 aux_act_once()
 
         ##### Option 2: run until DONE ######
@@ -677,7 +763,85 @@ class TinyPerson(JsonSerializableRegistry):
             while (len(contents) == 0) or (
                 not contents[-1]["action"]["type"] == "DONE"
             ):
+                # ----------------------------------------------------------------
+                # Build the list of stimulus payloads to send as user messages.
+                #
+                # Cognitive motivation (recency bias — Murdock, 1962):
+                #   The most recent image-bearing stimuli are re-injected so that
+                #   the agent can re-examine previously seen images even after
+                #   intervening non-visual stimuli.  Only the *most recent*
+                #   ``MAX_IMAGE_STIMULI_TO_RECALL`` image-bearing stimuli are
+                #   kept, reflecting the primacy of recent experience in
+                #   short-term visual memory.
+                #
+                # The returned list is in chronological order so that the LLM
+                # sees older context first and the newest stimulus last.
+                # ----------------------------------------------------------------
+                def _stimuli_payloads_for_current_turn():
+                    """Return a chronologically ordered list of stimulus payloads.
 
+                    The list always ends with the latest stimulus (of any type).
+                    Before it, up to ``MAX_IMAGE_STIMULI_TO_RECALL`` recent
+                    image-bearing stimuli are included (unless the latest is
+                    already one of them — no duplicates).
+                    """
+                    try:
+                        recent = self.episodic_memory.retrieve_recent()
+                    except Exception:
+                        return []
+
+                    if not recent:
+                        return []
+
+                    # --- locate the latest stimulus ---
+                    latest_payload = None
+                    latest_idx = None
+                    for i, msg in enumerate(reversed(recent)):
+                        if msg.get("role") == "user" and msg.get("type") == "stimulus":
+                            latest_payload = msg.get("content")
+                            latest_idx = len(recent) - 1 - i
+                            break
+
+                    if latest_payload is None:
+                        return []
+
+                    # --- collect image-bearing stimuli (chronological order) ---
+                    max_recall = TinyPerson.MAX_IMAGE_STIMULI_TO_RECALL
+                    image_payloads = []   # list of (idx, payload)
+                    for idx, msg in enumerate(recent):
+                        if msg.get("role") != "user" or msg.get("type") != "stimulus":
+                            continue
+                        content = msg.get("content")
+                        if not isinstance(content, dict):
+                            continue
+                        # Check if any stimulus in this message carries images
+                        for stim in content.get("stimuli", []):
+                            if stim.get("images"):
+                                image_payloads.append((idx, content))
+                                break
+
+                    # Keep only the most recent N (recency bias)
+                    if len(image_payloads) > max_recall:
+                        image_payloads = image_payloads[-max_recall:]
+
+                    # --- merge into chronological list, avoiding duplicates ---
+                    payloads = []
+                    seen_indices = set()
+                    for idx, payload in image_payloads:
+                        if idx != latest_idx and idx not in seen_indices:
+                            payloads.append(payload)
+                            seen_indices.add(idx)
+                    # Latest always comes last
+                    payloads.append(latest_payload)
+                    return payloads
+
+                for payload in _stimuli_payloads_for_current_turn():
+                    self.current_messages.append(
+                        {
+                            "role": "user",
+                            "content": payload,  # dict will be JSON-serialized by the generator
+                        }
+                    )
 
                 # check if the agent is acting without ever stopping
                 if len(contents) > TinyPerson.MAX_ACTIONS_BEFORE_DONE:
@@ -689,7 +853,6 @@ class TinyPerson(JsonSerializableRegistry):
                         logger.warning(f"[{self.name}] Agent {self.name} is acting in a loop. This may be a bug. Let's stop it here anyway.")
                         break
 
-                aux_pre_act()
                 aux_act_once()
 
         # The end of a sequence of actions is always considered to mark the end of an episode.
@@ -754,25 +917,186 @@ class TinyPerson(JsonSerializableRegistry):
     @config_manager.config_defaults(max_content_length="max_content_display_length")
     def see(
         self,
-        visual_description,
+        images=None,
+        description: str = None,
         source: AgentOrWorld = None,
         max_content_length=None,
     ):
         """
-        Perceives a visual stimulus through a description and updates its internal cognitive state.
+        Perceives a visual stimulus — optionally including actual images — and updates
+        the agent's internal cognitive state.
+
+        This is the sole entry point for visual stimuli.  When ``images`` are provided,
+        the agent will:
+
+        1. Register each image in its internal ``_image_registry`` (assigning short IDs
+           such as ``img_1``, ``img_2``, …).
+        2. Generate a text description of the images via the vision model (cached by
+           content hash to avoid redundant API calls).
+        3. Combine the user-supplied ``description`` and the LLM-generated description
+           into the stimulus ``content``.
+        4. Include ``image_description`` and ``image_refs`` (mapping IDs to file
+           paths / URLs) in the stimulus dict so that they are persisted in
+           episodic memory and available for later consolidation into semantic
+           memory.
+
+        When no ``images`` are provided the method behaves exactly like the previous
+        text-only ``see()``.
 
         Args:
-            visual_description (str): The description of the visual stimulus.
-            source (AgentOrWorld, optional): The source of the visual stimulus. Defaults to None.
+            images: ``None``, a single image reference (file path / URL / data URI),
+                or a list of image references.
+            description (str, optional): A textual description of what the agent is looking at.
+            source (AgentOrWorld, optional): The source of the visual stimulus.
+            max_content_length (int, optional): Maximum content length for display.
+
+        Returns:
+            TinyPerson: ``self``, to allow method chaining.
         """
+        from tinytroupe.utils.media import normalize_image_refs
+
+        image_refs = normalize_image_refs(images)
+
+        # ----- text-only path (backward-compatible) -----
+        if not image_refs:
+            return self._observe(
+                stimulus={
+                    "type": "VISUAL",
+                    "content": description or "",
+                    "source": name_or_empty(source),
+                },
+                max_content_length=max_content_length,
+            )
+
+        # ----- vision path -----
+        image_ids = self._register_images(image_refs)
+        llm_description = self._describe_images(image_refs, user_context=description)
+
+        # Combine user description + LLM description
+        parts = []
+        if description:
+            parts.append(description)
+        if llm_description:
+            parts.append(llm_description)
+        content = "\n\n".join(parts) if parts else ""
+
+        # NOTE: image descriptions are NOT stored eagerly in semantic memory.
+        # Instead, they are carried inside the stimulus dict and extracted during
+        # consolidation (see ``_extract_and_store_image_descriptions_from_episode``).
+        # This keeps the semantic-memory formation path uniform across all
+        # stimulus types — consistent with the consolidation pattern used by
+        # every other memory kind.
+
+        # Include image IDs in the stimulus so prompts can reference them
+        ids_note = ", ".join(f"[{iid}]" for iid in image_ids)
+        content_with_ids = f"{content}\n\nImage reference IDs: {ids_note}" if content else f"Image reference IDs: {ids_note}"
+
+        # Build a mapping from short IDs to actual file paths / URLs so that
+        # image references are fully preserved in episodic memory and can be
+        # used for later re-examination or consolidation.
+        image_refs_map = {iid: ref for iid, ref in zip(image_ids, image_refs)}
+
         return self._observe(
             stimulus={
                 "type": "VISUAL",
-                "content": visual_description,
+                "content": content_with_ids,
                 "source": name_or_empty(source),
+                "images": image_ids,
+                "image_description": llm_description or "",
+                "image_refs": image_refs_map,
             },
             max_content_length=max_content_length,
         )
+
+    # ------------------------------------------------------------------
+    # Image registry helpers
+    # ------------------------------------------------------------------
+
+    def _register_images(self, image_refs: list[str]) -> list[str]:
+        """
+        Assign short IDs to a list of image references and store them in the
+        agent's ``_image_registry``.
+
+        Args:
+            image_refs: A list of image file paths, URLs, or data URIs.
+
+        Returns:
+            A list of the assigned image IDs (e.g. ``["img_1", "img_2"]``).
+        """
+        ids: list[str] = []
+        for ref in image_refs:
+            self._image_id_counter += 1
+            img_id = f"img_{self._image_id_counter}"
+            self._image_registry[img_id] = ref
+            ids.append(img_id)
+        return ids
+
+    def _describe_images(
+        self,
+        image_refs: list[str],
+        user_context: str = None,
+    ) -> str:
+        """
+        Generate a concise text description of one or more images using the vision
+        model.  Results are cached by image content hash to avoid redundant API calls.
+
+        Args:
+            image_refs: A list of image file paths, URLs, or data URIs.
+            user_context: Optional user-supplied context to help the model.
+
+        Returns:
+            A string containing the LLM-generated description.
+        """
+        from tinytroupe.utils.media import build_multimodal_content_array, hash_image
+        from tinytroupe.clients import client
+
+        # Build a combined cache key from all image hashes
+        hashes = sorted(hash_image(ref) for ref in image_refs)
+        cache_key = hashlib.sha256("|".join(hashes).encode()).hexdigest()
+
+        if cache_key in TinyPerson._image_description_cache:
+            logger.debug(f"[{self.name}] Image description cache hit for {cache_key[:12]}…")
+            return TinyPerson._image_description_cache[cache_key]
+
+        # Build the vision prompt
+        prompt_text = (
+            "Describe the image(s) below concisely and factually in a few sentences. "
+            "Focus on the most salient visual content."
+        )
+        if user_context:
+            prompt_text += f"\n\nAdditional context from the viewer: {user_context}"
+
+        vision_detail = config_manager.get("vision_detail", "auto")
+        content_array = build_multimodal_content_array(
+            text=prompt_text,
+            image_refs=image_refs,
+            detail=vision_detail,
+        )
+
+        vision_model = config_manager.get_with_fallback("vision_model", "model")
+
+        messages = [
+            {"role": "user", "content": content_array},
+        ]
+
+        logger.debug(f"[{self.name}] Requesting image description via model {vision_model}")
+        response = client().send_message(
+            messages,
+            model=vision_model,
+            dedent_messages=False,  # content is a list, not a string
+        )
+
+        description_text = ""
+        if response and isinstance(response, dict):
+            description_text = response.get("content", "")
+        elif response and isinstance(response, str):
+            description_text = response
+
+        # Cache the result
+        TinyPerson._image_description_cache[cache_key] = description_text
+        logger.debug(f"[{self.name}] Cached image description ({cache_key[:12]}…): {description_text[:100]}…")
+
+        return description_text
 
     @config_manager.config_defaults(max_content_length="max_content_display_length")
     def think(self, thought, max_content_length=None):
@@ -853,7 +1177,11 @@ max_content_length=max_content_length,
         communication_display:bool=None
     ):
         """
-        Convenience method that combines the `listen` and `act` methods.
+        Convenience method that combines the `listen` and `act` methods. Synchronous.
+
+        API: This method is synchronous. Use return_actions=True when you need the
+        returned action list (e.g. in scripts or epic simulations). When return_actions=False,
+        the method returns self for chaining.
         """
 
         self.listen(speech, max_content_length=max_content_length, communication_display=communication_display)
@@ -865,7 +1193,8 @@ max_content_length=max_content_length,
     @config_manager.config_defaults(max_content_length="max_content_display_length")
     def see_and_act(
         self,
-        visual_description,
+        images=None,
+        description=None,
         return_actions=False,
         max_content_length=None,
     ):
@@ -873,7 +1202,7 @@ max_content_length=max_content_length,
         Convenience method that combines the `see` and `act` methods.
         """
 
-        self.see(visual_description, max_content_length=max_content_length)
+        self.see(images=images, description=description, max_content_length=max_content_length)
         return self.act(
             return_actions=return_actions, max_content_length=max_content_length
         )
@@ -1160,6 +1489,39 @@ max_content_length=max_content_length,
                         self._update_consolidation_metrics(len(episode), is_automatic, time.time() - start_time)
                     else:
                         logger.warning(f"[{self.name}] No memories to consolidate from the current episode.")
+                # Extract and store any image descriptions found in the episode
+                # as ``image_description`` engrams in semantic memory. This is
+                # the deferred counterpart of what used to be an eager store in
+                # see(); doing it here keeps the semantic-memory formation path
+                # uniform across all stimulus types.
+                episode_for_images = self.episodic_memory.get_current_episode(
+                    item_types=["stimulus"],
+                )
+                self._extract_and_store_image_descriptions_from_episode(episode_for_images)
+
+                episodic_consolidator = EpisodicConsolidator()
+                episode = self.episodic_memory.get_current_episode(
+                    item_types=["action", "stimulus"],
+                )
+                logger.debug(f"[{self.name}] Current episode: {episode}")
+                consolidated_memories = episodic_consolidator.process(
+                    episode,
+                    timestamp=self._mental_state["datetime"],
+                    context=self._mental_state,
+                    persona=self.minibio(),
+                ).get("consolidation", None)
+                if consolidated_memories is not None:
+                    logger.info(
+                        f"[{self.name}] Consolidating current {len(episode)} episodic events as consolidated semantic memories."
+                    )
+                    logger.debug(
+                        f"[{self.name}] Consolidated memories: {consolidated_memories}"
+                    )
+                    self.semantic_memory.store_all(consolidated_memories)
+                else:
+                    logger.warning(
+                        f"[{self.name}] No memories to consolidate from the current episode."
+                    )
 
             else:
                 logger.warning(f"[{self.name}] Memory consolidation is disabled. Not consolidating current episode memories into semantic memory.")
@@ -1213,8 +1575,92 @@ max_content_length=max_content_length,
         """
         return self.consolidation_metrics.copy()
 
-    def optimize_memory(self):
-        pass #TODO
+    def _extract_and_store_image_descriptions_from_episode(self, episode: list) -> None:
+        """
+        Scan an episode for stimulus messages that carry an ``image_description``
+        field and store each as an ``image_description`` engram in semantic memory.
+
+        This is the deferred path for image semantic memory formation: ``see()``
+        attaches the LLM-generated description to the stimulus dict, and this
+        method harvests those descriptions during consolidation so that the
+        semantic-memory formation pipeline remains uniform across all stimulus
+        types (cf. levels-of-processing framework — Craik & Lockhart, 1972).
+
+        If ``image_refs`` are present they are included in the engram content so
+        that the original file paths / URLs remain discoverable.
+
+        Args:
+            episode: A list of episodic memory items (as returned by
+                ``episodic_memory.get_current_episode``).
+        """
+        for mem in episode:
+            content = mem.get("content")
+            if not isinstance(content, dict):
+                continue
+            for stim in content.get("stimuli", []):
+                desc = stim.get("image_description")
+                if not desc:
+                    continue
+
+                # Build a combined content string that includes the image refs
+                refs = stim.get("image_refs", {})
+                if refs:
+                    refs_note = ", ".join(
+                        f"{iid}: {path}" for iid, path in refs.items()
+                    )
+                    combined = f"{desc}\n\nImage sources: {refs_note}"
+                else:
+                    combined = desc
+
+                self.semantic_memory.store({
+                    "content": combined,
+                    "type": "image_description",
+                    "simulation_timestamp": mem.get("simulation_timestamp", self.iso_datetime()),
+                })
+
+    def reflect_and_synthesize_knowledge(self) -> None:
+        """
+        Reflects on episodic memories and stores extracted insights as synthesized
+        knowledge in semantic memory. Uses the LLM to summarize key learnings.
+        """
+        import time
+        episodes = self.episodic_memory.retrieve_all()
+        if not episodes:
+            logger.debug(f"[{self.name}] No episodes to reflect on.")
+            return
+        ts = str(time.time())
+        summary = json.dumps(
+            [e.get("content", e) if isinstance(e.get("content"), (str, dict)) else str(e) for e in episodes[-20:]],
+            default=str,
+        )[:8000]
+        prompt = [
+            {"role": "system", "content": "Extract key insights or learnings from the following episodic memories. Return ONLY a JSON array of strings, e.g. [\"insight 1\", \"insight 2\"]. No other text."},
+            {"role": "user", "content": f"Episodic memories:\n{summary}"},
+        ]
+        try:
+            resp = client().send_message(prompt)
+            raw = resp.get("content") or ""
+            parsed = utils.extract_json(raw)
+            insights = parsed if isinstance(parsed, list) else []
+            for s in insights:
+                if isinstance(s, str) and s.strip():
+                    self.semantic_memory.store({
+                        "type": "synthesized_knowledge",
+                        "content": s.strip(),
+                        "source_reflection_timestamp": ts,
+                        "reflected_episodes_count": len(episodes),
+                    })
+        except Exception as e:
+            logger.warning(f"[{self.name}] Reflection failed: {e}")
+
+    def optimize_memory(self) -> bool:
+        """
+        Triggers memory optimization (e.g. consolidation) when beneficial.
+        Returns True if optimization was performed, False otherwise.
+        """
+        if self.should_consolidate():
+            return self.consolidate_episode_memories(force=True, is_automatic=False)
+        return False
 
     def clear_episodic_memory(self, max_prefix_to_clear=None, max_suffix_to_clear=None):
         """
@@ -1615,6 +2061,12 @@ max_content_length=max_content_length,
                     stimus["content"], max_length=max_content_length
                 )
 
+                # Append image ID note if present
+                image_ids = stimus.get("images")
+                if image_ids:
+                    ids_str = ", ".join(image_ids)
+                    msg_simplified_content += f"\n[+ {len(image_ids)} image(s): {ids_str}]"
+
                 indent = " " * len(msg_simplified_actor) + "      > "
                 msg_simplified_content = textwrap.fill(
                     msg_simplified_content,
@@ -1652,6 +2104,12 @@ max_content_length=max_content_length,
             msg_simplified_content = utils.break_text_at_length(
                 content["action"].get("content", ""), max_length=max_content_length
             )
+
+            # Append image ID note for SHOW actions
+            action_images = content["action"].get("images")
+            if action_images:
+                ids_str = ", ".join(action_images)
+                msg_simplified_content += f"\n[images: {ids_str}]"
 
             indent = " " * len(msg_simplified_actor) + "      > "
             msg_simplified_content = textwrap.fill(
@@ -1792,8 +2250,9 @@ max_content_length=max_content_length,
         """
         to_copy = copy.copy(self.__dict__)
 
-        # delete the logger and other attributes that cannot be serialized
-        del to_copy["environment"]
+        # delete attributes that cannot be serialized (locks, refs, etc.)
+        for key in ("environment", "_state_lock", "_memory_lock", "_consolidation_lock"):
+            to_copy.pop(key, None)
         del to_copy["_mental_faculties"]
         del to_copy["action_generator"]
 
@@ -1901,3 +2360,42 @@ max_content_length=max_content_length,
         Clears the global list of agents.
         """
         TinyPerson.all_agents = {}
+
+    @staticmethod
+    def get_global_cost_stats():
+        """
+        Returns global LLM cost statistics with agent-level derivatives.
+        """
+        base_stats = client().get_cost_stats()
+        total_agents = len(TinyPerson.all_agents)
+        per_agent = None
+        if total_agents > 0:
+            per_agent = {
+                key: value / total_agents
+                for key, value in base_stats.items()
+                if isinstance(value, (int, float))
+            }
+
+        return {
+            "base_stats": base_stats,
+            "total_agents": total_agents,
+            "per_agent": per_agent,
+        }
+
+    @staticmethod
+    def pretty_print_global_cost_stats():
+        """
+        Pretty prints global LLM cost statistics for all registered agents.
+        """
+        stats = TinyPerson.get_global_cost_stats()
+        print("\n" + "=" * 60)
+        print("TINYPERSON GLOBAL COST STATISTICS")
+        print("=" * 60)
+        print(f"Total agents:         {stats['total_agents']:,}")
+        for key, value in stats["base_stats"].items():
+            print(f"{key}: {value:,}")
+        if stats["per_agent"] is not None:
+            print("Per-agent:")
+            for key, value in stats["per_agent"].items():
+                print(f"  {key}: {value:.2f}")
+        print("=" * 60 + "\n")

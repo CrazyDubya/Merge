@@ -21,6 +21,7 @@ import os # For test_save_specification
 # Imports for new tests
 from unittest.mock import MagicMock, patch
 
+@pytest.mark.core
 def test_run(setup, focus_group_world):
 
     # empty world
@@ -43,10 +44,20 @@ def test_run(setup, focus_group_world):
                 action_content = msg['content']['action'].get('content', '')
                 if action_content:  # Only check if there's content
                     assert proposition_holds(action_content + " - The message relates to AI products, technology, or innovation")
-            
-            # TODO stimulus integrity check?
+    # Stimulus integrity: at least one agent should have received the broadcast
+    broadcast_received = False
+    for agent in world_2.agents:
+        for msg in agent.episodic_memory.retrieve_all():
+            for s in msg.get('content', {}).get('stimuli', []):
+                if 'content' in s and 'Discuss ideas for a new AI product' in s['content']:
+                    broadcast_received = True
+                    break
+        if broadcast_received:
+            break
+    assert broadcast_received, "At least one agent should have received the broadcast stimulus"
         
 
+@pytest.mark.core
 def test_broadcast(setup, focus_group_world):
 
     world = focus_group_world
@@ -73,6 +84,7 @@ def test_broadcast(setup, focus_group_world):
                     assert proposition_holds(action_content + " - The message relates to baby products, parenting, or product brainstorming")
 
 
+@pytest.mark.core
 def test_encode_complete_state(setup, focus_group_world):
     world = focus_group_world
 
@@ -83,6 +95,7 @@ def test_encode_complete_state(setup, focus_group_world):
     assert state['name'] == world.name, "The state should have the world name."
     assert state['agents'] is not None, "The state should have the agents."
 
+@pytest.mark.core
 def test_decode_complete_state(setup, focus_group_world):
     world = focus_group_world
 

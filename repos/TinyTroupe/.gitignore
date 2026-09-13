@@ -3,6 +3,7 @@
 .llmapi.bin
 *.cache.*
 tests_cache.pickle
+openai_api_cache.json
 *.local.*
 .VSCodeCounter/
 .vscode/
@@ -61,6 +62,8 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 cover/
+test-report.*
+test-results.*
 
 # Translations
 *.mo
@@ -173,3 +176,4 @@ cython_debug/
 # Test credentials for secure API testing (should never be committed)
 test_credentials.ini
 tests/test_credentials.ini
+test-report-*.html

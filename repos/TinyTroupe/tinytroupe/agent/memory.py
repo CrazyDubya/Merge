@@ -294,18 +294,18 @@ class EpisodicMemory(TinyMemory):
         logger.debug(f"Episode committed. Memory stats: {self.get_memory_stats()}")
 
     def get_current_episode(self, item_types: list = None) -> list:
-    """
-    Returns the current episode buffer, which is used to store messages during an episode.
+        """
+        Returns the current episode buffer, which is used to store messages during an episode.
 
-    Args:
-        item_types (list, optional): If provided, only retrieve memories of these types. Defaults to None, which retrieves all types.
+        Args:
+            item_types (list, optional): If provided, only retrieve memories of these types. Defaults to None, which retrieves all types.
 
-    Returns:
-        list: The current episode buffer.
-    """
-    result = copy.copy(self.episodic_buffer)
-    result = self.filter_by_item_types(result, item_types) if item_types is not None else result
-    return result
+        Returns:
+            list: The current episode buffer.
+        """
+        result = copy.copy(self.episodic_buffer)
+        result = self.filter_by_item_types(result, item_types) if item_types is not None else result
+        return result
 
 
     def count(self) -> int:
@@ -347,6 +347,14 @@ class EpisodicMemory(TinyMemory):
             self.memory = deque(memory_list, maxlen=self.max_size)
         else:
             self.memory = memory_list
+
+        # Clear semantic index and mapping when memory is cleared
+        self.memory_id_map.clear()
+        if hasattr(self.semantic_connector, 'documents') and self.semantic_connector.documents:
+            self.semantic_connector.documents.clear()
+        if hasattr(self.semantic_connector, 'name_to_document') and self.semantic_connector.name_to_document:
+            self.semantic_connector.name_to_document.clear()
+        self.semantic_connector.index = None
 
         # Reset warning flag after clearing
         self._warning_issued = False
@@ -441,11 +449,35 @@ class EpisodicMemory(TinyMemory):
     def _store(self, value: Any) -> None:
         """
         Stores a value in memory, respecting size limits and cleanup strategies.
+        Indexes the memory for semantic retrieval via semantic_connector.
         """
         self.episodic_buffer.append(value)
 
+        # Index for semantic retrieval: create Document and add to connector
+        memory_id = str(uuid.uuid4())
+        memory_list = list(self.memory) if isinstance(self.memory, deque) else self.memory
+        effective_idx = len(memory_list) + len(self.episodic_buffer) - 1
+        self.memory_id_map[memory_id] = effective_idx
+
+        doc_text = json.dumps(value, default=str)
+        doc = Document(
+            text=doc_text,
+            metadata={
+                "memory_id": memory_id,
+                "semantic_memory_id": memory_id,
+                "type": value.get("type", "episodic") if isinstance(value, dict) else "episodic",
+            },
+        )
+        try:
+            self.semantic_connector.add_document(doc)
+        except Exception as e:
+            # Embedding may require API key (e.g. OpenAI when using Ollama for chat)
+            logger.warning(
+                "Episodic memory semantic indexing failed (retrieve_relevant will return []): %s",
+                e,
+            )
+
         # Check if we should warn about memory usage
-        # Note: This checks committed memory size, not buffer
         self._check_memory_size_and_warn()
 
     def retrieve(self, first_n: int, last_n: int, include_omission_info:bool=True, item_type:str=None) -> list:
@@ -490,6 +522,12 @@ class EpisodicMemory(TinyMemory):
 
         # compute fixed prefix
         fixed_prefix = memories[: self.fixed_prefix_length] + omisssion_info
+        # TODO: to be more psychologically plausible, instead of a fixed prefix, we should carefully 
+        #       select which episodic memories from the agent history are recalled. The older the 
+        #       episodes, the less of the memories; the more recent the episodes, the more of the 
+        #       memories; but also, some episodes might be more relevant to be recalled than others, 
+        #       even if they are old. So we should consider relevance and recency to determine which 
+        #       memories to recall.
 
         # how many lookback values remain?
         remaining_lookback = min(
@@ -517,15 +555,15 @@ class EpisodicMemory(TinyMemory):
         Retrieves top-k values from memory that are most relevant to a given target.
         """
         retrieved_nodes = self.semantic_connector.retrieve_relevant(relevance_target, top_k=top_k)
+        combined = self._memory_with_current_buffer()
         relevant_memories = []
         for node_info in retrieved_nodes:
             metadata = node_info.get('metadata', {})
             memory_id = metadata.get('memory_id')
             if memory_id:
                 memory_idx = self.memory_id_map.get(memory_id)
-                # Check if memory_idx is not None and is a valid index
-                if memory_idx is not None and 0 <= memory_idx < len(self.memory):
-                    relevant_memories.append(self.memory[memory_idx])
+                if memory_idx is not None and 0 <= memory_idx < len(combined):
+                    relevant_memories.append(combined[memory_idx])
         return relevant_memories
 
     def retrieve_first(self, n: int, include_omission_info:bool=True, item_type:str=None) -> list:
@@ -587,9 +625,6 @@ class SemanticMemory(TinyMemory):
 
         if not hasattr(self, 'semantic_grounding_connector') or self.semantic_grounding_connector is None:
             self.semantic_grounding_connector = BaseSemanticGroundingConnector("Semantic Memory Storage")
-            
-            # TODO remove?
-            #self.semantic_grounding_connector.add_documents(self._build_documents_from(self.memories))
     
         
     def _preprocess_value_for_storage(self, value: dict) -> Any:
@@ -602,30 +637,43 @@ class SemanticMemory(TinyMemory):
                     "simulation_timestamp": value.get("simulation_timestamp", None)}
 
             # Refine the content of the engram is built based on the type of the value to make it more meaningful.
-            if value['type'] == 'action':
-                engram['content'] = f"# Action performed\n" +\
-                        f"I have performed the following action at date and time {value['simulation_timestamp']}:\n\n"+\
-                        f" {value['content']}"
-            
-            elif value['type'] == 'stimulus':
-                engram['content'] = f"# Stimulus\n" +\
-                        f"I have received the following stimulus at date and time {value['simulation_timestamp']}:\n\n"+\
-                        f" {value['content']}"
-            elif value['type'] == 'feedback':
-                engram['content'] = f"# Feedback\n" +\
-                        f"I have received the following feedback at date and time {value['simulation_timestamp']}:\n\n"+\
-                        f" {value['content']}"
-            elif value['type'] == 'consolidated':
-                engram['content'] = f"# Consolidated Memory\n" +\
-                        f"I have consolidated the following memory at date and time {value['simulation_timestamp']}:\n\n"+\
-                        f" {value['content']}"
-            elif value['type'] == 'reflection':
-                engram['content'] = f"# Reflection\n" +\
-                        f"I have reflected on the following memory at date and time {value['simulation_timestamp']}:\n\n"+\
-                        f" {value['content']}"
-            elif value['type'] == 'synthesized_knowledge':
-                engram['content'] = f"# Synthesized Knowledge (Reflected on: {value.get('source_reflection_timestamp', 'N/A')}, From: {value.get('reflected_episodes_count', 'N/A')} episodes)\n" +\
-                         f"Insight: {value['content']}"
+            if value["type"] == "action":
+                engram["content"] = (
+                    f"# Action performed\n"
+                    + f"I have performed the following action at date and time {value['simulation_timestamp']}:\n\n"
+                    + f" {value['content']}"
+                )
+
+            elif value["type"] == "stimulus":
+                engram["content"] = (
+                    f"# Stimulus\n"
+                    + f"I have received the following stimulus at date and time {value['simulation_timestamp']}:\n\n"
+                    + f" {value['content']}"
+                )
+            elif value["type"] == "feedback":
+                engram["content"] = (
+                    f"# Feedback\n"
+                    + f"I have received the following feedback at date and time {value['simulation_timestamp']}:\n\n"
+                    + f" {value['content']}"
+                )
+            elif value["type"] == "consolidated":
+                engram["content"] = (
+                    f"# Consolidated Memory\n"
+                    + f"I have consolidated the following memory at date and time {value['simulation_timestamp']}:\n\n"
+                    + f" {value['content']}"
+                )
+            elif value["type"] == "reflection":
+                engram["content"] = (
+                    f"# Reflection\n"
+                    + f"I have reflected on the following memory at date and time {value['simulation_timestamp']}:\n\n"
+                    + f" {value['content']}"
+                )
+            elif value["type"] == "image_description":
+                engram["content"] = (
+                    f"# Image Description\n"
+                    + f"I have seen the following image(s) at date and time {value['simulation_timestamp']}:\n\n"
+                    + f" {value['content']}"
+                )
             else:
                 engram['content'] = f"# Information\n" +\
                         f"I have obtained following information at date and time {value['simulation_timestamp']}:\n\n"+\
@@ -727,46 +775,47 @@ class SemanticMemory(TinyMemory):
     # Auxiliary compatibility methods
     #####################################
 
-def _build_document_from(self, memory_text: str, metadata: dict = None) -> Document:
-    """
-    Wraps a memory text into a Document with optional metadata.
-    """
-    if metadata is None:
-        metadata = {}
-    return Document(text=str(memory_text), metadata=metadata)
+    def _build_document_from(self, memory_text, metadata: dict = None) -> Document:
+        """
+        Wraps a memory text into a Document with optional metadata.
+        """
+        if metadata is None:
+            metadata = {}
+        text = memory_text.get("content", str(memory_text)) if isinstance(memory_text, dict) else str(memory_text)
+        return Document(text=text, metadata=metadata)
 
-def _build_documents_from(self, memories: list) -> list:
-    """
-    Builds Document objects from a list of memory items, extracting relevant metadata when available.
+    def _build_documents_from(self, memories: list) -> list:
+        """
+        Builds Document objects from a list of memory items, extracting relevant metadata when available.
 
-    Handles dicts with fields like 'content', 'simulation_timestamp', and 'type'.
-    Applies preprocessing for certain memory types. Falls back gracefully for strings and unknown formats.
-    """
-    docs = []
-    for mem_item in memories:
-        if isinstance(mem_item, dict):
-            text_content = mem_item.get('content', str(mem_item))
-            metadata = {
-                'original_timestamp': mem_item.get('simulation_timestamp') or mem_item.get('source_reflection_timestamp'),
-                'type': mem_item.get('type', 'unknown_init_type')
-            }
+        Handles dicts with fields like 'content', 'simulation_timestamp', and 'type'.
+        Applies preprocessing for certain memory types. Falls back gracefully for strings and unknown formats.
+        """
+        docs = []
+        for mem_item in memories:
+            if isinstance(mem_item, dict):
+                text_content = mem_item.get('content', str(mem_item))
+                metadata = {
+                    'original_timestamp': mem_item.get('simulation_timestamp') or mem_item.get('source_reflection_timestamp'),
+                    'type': mem_item.get('type', 'unknown_init_type')
+                }
 
-            # Special preprocessing for known memory types
-            if mem_item.get('type') in ['action', 'stimulus', 'synthesized_knowledge']:
-                processed_text = self._preprocess_value_for_storage(mem_item)
-                if processed_text:  # Only replace if valid
-                    text_content = processed_text
+                # Special preprocessing for known memory types
+                if mem_item.get('type') in ['action', 'stimulus', 'synthesized_knowledge']:
+                    processed_text = self._preprocess_value_for_storage(mem_item)
+                    if processed_text:  # Only replace if valid
+                        text_content = processed_text
 
-            docs.append(self._build_document_from(text_content, metadata=metadata))
+                docs.append(self._build_document_from(text_content, metadata=metadata))
 
-        elif isinstance(mem_item, str):
-            # Handle already processed strings
-            docs.append(self._build_document_from(mem_item, metadata={'type': 'unknown_init_str'}))
+            elif isinstance(mem_item, str):
+                # Handle already processed strings
+                docs.append(self._build_document_from(mem_item, metadata={'type': 'unknown_init_str'}))
 
-        else:
-            # Fallback for unknown types
-            docs.append(self._build_document_from(str(mem_item), metadata={'type': 'unknown_init_fallback'}))
-    return docs
+            else:
+                # Fallback for unknown types
+                docs.append(self._build_document_from(str(mem_item), metadata={'type': 'unknown_init_fallback'}))
+        return docs
 
 
 ###################################################################################################
@@ -806,12 +855,63 @@ class EpisodicConsolidator(MemoryProcessor):
     def process(self, memories: list, timestamp: str=None, context:Union[str, list, dict] = None, persona:Union[str, dict] = None, sequential: bool = True) -> list:
         logger.debug(f"STARTING MEMORY CONSOLIDATION: {len(memories)} memories to consolidate")
 
-        enriched_context = f"CURRENT COGNITIVE CONTEXT OF THE AGENT: {context}" if context else "No specific context provided for consolidation."
+        # Strip image references from memories before consolidation — image IDs
+        # are session-local and carry no meaning for the consolidation LLM.
+        memories = self._strip_image_references(memories)
+
+        enriched_context = (
+            f"CURRENT COGNITIVE CONTEXT OF THE AGENT: {context}"
+            if context
+            else "No specific context provided for consolidation."
+        )
+
+        # we'll limit the length of memories to process at once, to avoid overflowing the input of embedding models, which
+        # are much more limited than the LLM's.
+        max_word_count = 1000
+        total_word_count = self.count_memory_content_words(memories)
+
+        if total_word_count <= max_word_count:
+            # Process all memories at once if under the limit
+            result = self._consolidate(memories, timestamp, enriched_context, persona)
+            logger.debug(f"Consolidated {len(memories)} memories into: {result}")
+            return result
+        else:
+            # Break memories into batches and consolidate each batch
+            logger.debug(
+                f"Total word count {total_word_count} exceeds {max_word_count}, breaking into batches"
+            )
 
         result = self._consolidate(memories, timestamp, enriched_context, persona)
         logger.debug(f"Consolidated {len(memories)} memories into: {result}")
         
         return result
+
+    @staticmethod
+    def _strip_image_references(memories: list) -> list:
+        """
+        Return a deep-enough copy of *memories* with any ``images``,
+        ``image_description``, and ``image_refs`` keys removed from
+        stimulus/action content dicts.  These are session-local references
+        (or already harvested during consolidation) that would only add noise
+        to the consolidation prompt.
+        """
+        import copy
+        cleaned = []
+        for mem in memories:
+            mem = copy.deepcopy(mem)
+            content = mem.get("content")
+            if isinstance(content, dict):
+                # Strip from stimuli list
+                for s in content.get("stimuli", []):
+                    s.pop("images", None)
+                    s.pop("image_description", None)
+                    s.pop("image_refs", None)
+                # Strip from action dict
+                action = content.get("action")
+                if isinstance(action, dict):
+                    action.pop("images", None)
+            cleaned.append(mem)
+        return cleaned
 
     @utils.llm(enable_json_output_format=True, enable_justification_step=False)
     def _consolidate(self, memories: list, timestamp: str, context:str, persona:str) -> dict:
@@ -918,38 +1018,34 @@ class EpisodicConsolidator(MemoryProcessor):
             dict: A dictionary with a single key "consolidation", whose value is a list of consolidated memories, each represented as a dictionary with the structure described above.
         """
         # llm annotation will handle the implementation
-        
-# TODO work in progress below         
+
 
 class ReflectionConsolidator(MemoryProcessor):
     """
-    Memory reflection mechanism.
+    Memory reflection mechanism. Produces abstract semantic memories from episodic memories,
+    summarizing and reducing redundant information while preserving the most relevant facts.
     """
 
     def process(self, memories: list, timestamp: str=None, context:Union[str, list, dict] = None, persona:Union[str, dict] = None, sequential: bool = True) -> list:
-        return self._reflect(memories, timestamp)
+        result = self._reflect(memories, timestamp, context, persona)
+        return result.get("reflection", []) if isinstance(result, dict) else result
 
-    def _reflect(self, memories: list, timestamp: str) -> list:
+    @utils.llm(enable_json_output_format=True, enable_justification_step=False)
+    def _reflect(self, memories: list, timestamp: str, context:Union[str, list, dict] = None, persona:Union[str, dict] = None) -> dict:
         """
-        Given a list of input episodic memories, this method reflects on them and produces a more abstract representation, such as a summary or an abstract fact.
-        The reflection process follows these rules:
-          - Objective facts or knowledge that are present in the set of memories are grouped together, abstracted (if necessary) and summarized. The aim is to
-            produce a semantic memory.
-          - Impressions, feelings, or other subjective experiences are summarized into a more abstract representation, such as a summary or an abstract subjective fact.
-          - Timestamps in the consolidated memories refer to the moment of the reflection, not to the source events that produced the original episodic memories.
-          - No episodic memory is generated, all memories are consolidated as more abstract semantic memories.
-          - In general, the reflection process aims to reduce the number of memories while preserving the most relevant information and removing redundant or less relevant information.
+        Given a list of input episodic memories, this method reflects on them and produces a more abstract
+        representation (semantic memories). Unlike EpisodicConsolidator which preserves all details,
+        reflection summarizes and reduces redundant information while keeping the most relevant facts.
+
+        Rules:
+          - Objective facts or knowledge: group together, abstract if needed, summarize into semantic memories.
+          - Impressions, feelings, subjective experiences: summarize into abstract representations.
+          - Use the reflection timestamp for all output memories (not original event timestamps).
+          - No episodic memories in output; all output is semantic (abstract) format.
+          - Reduce the number of memories; remove redundant or less relevant information.
+
+        Input memories are dicts: {"role": ..., "content": ..., "type": "action"/"stimulus"/..., "simulation_timestamp": ...}
+
+        Output must be a JSON dict: {"reflection": [{"content": "...", "type": "semantic", "simulation_timestamp": "..."}, ...]}
         """
-        pass # TODO
-    def _reflect(self, memories: list, timestamp: str) -> list:
-        """
-        Given a list of input episodic memories, this method reflects on them and produces a more abstract representation, such as a summary or an abstract fact.
-        The reflection process follows these rules:
-          - Objective facts or knowledge that are present in the set of memories are grouped together, abstracted (if necessary) and summarized. The aim is to
-            produce a semantic memory.
-          - Impressions, feelings, or other subjective experiences are summarized into a more abstract representation, such as a summary or an abstract subjective fact.
-          - Timestamps in the consolidated memories refer to the moment of the reflection, not to the source events that produced the original episodic memories.
-          - No episodic memory is generated, all memories are consolidated as more abstract semantic memories.
-          - In general, the reflection process aims to reduce the number of memories while preserving the most relevant information and removing redundant or less relevant information.
-        """
-        pass # TODO
+        pass  # LLM annotation handles implementation

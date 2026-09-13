@@ -1,3 +1,4 @@
+import os
 import pytest
 from unittest.mock import MagicMock
 
@@ -7,11 +8,11 @@ sys.path.insert(0, '..')
 sys.path.insert(0, '../../')
 sys.path.insert(0, '../../tinytroupe/')
 
-
 from tinytroupe.utils import name_or_empty, extract_json, repeat_on_error
 from testing_utils import *
 from tinytroupe.utils.llm import llm
 
+@pytest.mark.core
 def test_extract_json():
     # Test with a simple JSON string
     text = 'Some text before {"key": "value"} some text after'
@@ -121,6 +122,7 @@ def test_extract_json():
     assert result_very_broken is None
 
 
+@pytest.mark.core
 def test_name_or_empty():
     class MockEntity:
         def __init__(self, name):
@@ -136,6 +138,7 @@ def test_name_or_empty():
     assert result == ""
 
 
+@pytest.mark.core
 def test_repeat_on_error():
     class DummyException(Exception):
         pass
@@ -170,11 +173,15 @@ def test_repeat_on_error():
     assert dummy_function.call_count == 1
 
 
-# TODO
-#def test_json_serializer():
 
 
 def test_llm_decorator():
+    from tinytroupe import config_manager
+
+    api_type = config_manager.get("api_type")
+    if api_type == "openai" and not os.environ.get("OPENAI_API_KEY"):
+        pytest.skip("OPENAI_API_KEY not set; use Ollama config or set key to run LLM decorator test")
+
     @llm(temperature=0.5)
     def joke():
         return "Tell me a joke."
