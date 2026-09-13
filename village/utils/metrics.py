@@ -52,7 +52,7 @@ class VillageMetrics:
             registry=self.registry
         )
         self.village_info.info({
-            'version': '0.1.0',
+            'version': '0.3.0',
             'phase': '1'
         })
 

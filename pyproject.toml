@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "village"
-version = "0.1.0"
+version = "0.3.0"
 description = "A Village Architecture for Exploring LLM interactions"
 readme = "README.md"
 license = {text = "MIT"}
