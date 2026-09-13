@@ -1,0 +1,9 @@
+# Optional extra: Village provider/storage backends (club_harness.llm.providers,
+# club_harness.memory.stores). Merge core stays httpx-only; install this only
+# if you need the OpenAI/Anthropic/Google provider SDKs or Postgres storage.
+openai>=1.0.0
+anthropic>=0.30.0
+google-generativeai>=0.3.0
+asyncpg>=0.28.0
+pyyaml>=6.0.0
+python-dotenv>=1.0.0
