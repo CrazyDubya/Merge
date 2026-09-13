@@ -1,0 +1,75 @@
+# ChipCliff Collaborative Framework Dependencies
+# Core framework requirements
+
+# Web Framework
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+pydantic==2.5.0
+
+# HTTP Client & API Integration
+requests==2.31.0
+httpx==0.25.2
+
+# LLM Integration
+anthropic==0.7.8
+openai==1.3.9
+
+# Configuration & Environment
+PyYAML==6.0.1
+python-dotenv==1.0.0
+
+# Data Processing & Validation
+beautifulsoup4==4.12.2
+lxml==4.9.3
+
+# Machine Learning & AI (for task classification)
+transformers==4.36.0
+torch==2.1.1
+numpy==1.25.2
+scikit-learn==1.3.2
+
+# Async & Concurrency
+asyncio-mqtt==0.13.0
+websockets==12.0
+
+# Logging & Monitoring
+loguru==0.7.2
+structlog==23.2.0
+
+# Development & Testing
+pytest==7.4.3
+pytest-asyncio==0.21.1
+pytest-cov==4.1.0
+pytest-mock==3.12.0
+
+# Code Quality & Formatting
+black==23.11.0
+isort==5.12.0
+flake8==6.1.0
+mypy==1.7.1
+
+# Security & Validation
+cryptography==41.0.8
+passlib==1.7.4
+python-jose[cryptography]==3.3.0
+
+# Database (for future features)
+sqlalchemy==2.0.23
+alembic==1.12.1
+
+# File Processing
+openpyxl==3.1.2
+python-multipart==0.0.6
+
+# Utilities
+click==8.1.7
+rich==13.7.0
+tqdm==4.66.1
+
+# Production & Deployment
+gunicorn==21.2.0
+psutil==5.9.6
+
+# Optional: GPU support (uncomment if needed)
+# torch-audio==2.1.1
+# torch-vision==0.16.1

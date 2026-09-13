@@ -1,0 +1,83 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# SECURITY: Environment variables and API keys
+.env
+.env.local
+.env.production
+.env.staging
+config/config.yaml.local
+*.key
+*.pem
+
+# Logs
+*.log
+logs/
+app.log
+
+# FastAPI/Flask
+instance/
+.cache/
+
+# ML Models and checkpoints
+models/task_classifier/
+*.pt
+*.pth
+*.ckpt
+
+# Data files
+data/
+datasets/
+*.csv
+*.json
+*.xml
+
+# Static file uploads
+uploads/
+media/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
