@@ -9,6 +9,7 @@ from .council import (
     SimpleRankingStrategy,
     WeightedVotingStrategy,
 )
+from .village import VillageTeam
 
 __all__ = [
     "Council",
@@ -18,4 +19,5 @@ __all__ = [
     "ConsensusStrategy",
     "SimpleRankingStrategy",
     "WeightedVotingStrategy",
+    "VillageTeam",
 ]

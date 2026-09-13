@@ -12,6 +12,7 @@ from .config import config
 # Avoid circular import
 if TYPE_CHECKING:
     from ..llm.router import LLMRouter, LLMResponse
+    from .rate_limit import RateLimiter
 
 
 @dataclass
@@ -45,10 +46,12 @@ class Agent:
         llm_router: Optional["LLMRouter"] = None,
         model: Optional[str] = None,
         tier: Optional[str] = None,
+        rate_limiter: Optional["RateLimiter"] = None,
     ):
         self.name = name
         self.instructions = instructions
         self.persona = persona or {}
+        self.rate_limiter = rate_limiter
 
         # Lazy import to avoid circular dependency
         if llm_router is None:
@@ -142,6 +145,10 @@ class Agent:
 
     def chat(self, message: str) -> str:
         """Simple chat interface - single turn."""
+        if self.rate_limiter is not None and not self.rate_limiter.acquire_nowait():
+            from .errors import RateLimitError
+
+            raise RateLimitError("Rate limit exceeded for agent chat")
         response = self.step(message)
         return response.content
 

@@ -13,6 +13,18 @@ A unified agent orchestration framework combining best practices from multiple a
 | 12-factor-agents | HumanLayer | Production agent principles |
 | hivey | CrazyDubya | Swarm intelligence, cost-aware routing |
 | qwen-code | Qwen | Coding agent architecture baseline |
+| Village | CrazyDubya | Provider abstraction, storage backends, rate limiting, collaborate loop (merged 2026-09-12 via `git subtree`; full history in `repos/Village/`) |
+| role-based-llm-framework | CrazyDubya | PM/coder/researcher role algorithms + dashboard (merged 2026-09-12 via `git subtree`; full history in `repos/role-based-llm-framework/`) |
+
+## What's new (2026-09-12 consolidation)
+
+- **`club_harness/llm/providers/`** - OpenAI/Anthropic/Google provider backends from Village (optional extra: `requirements-village.txt`; core stays httpx-only)
+- **`club_harness/memory/stores.py`** - storage backends from Village (in-memory + Postgres)
+- **`club_harness/core/rate_limit.py`** - token-bucket rate limiter + quota manager from Village; `Agent(..., rate_limiter=...)` enforces it in `chat()`
+- **`club_harness/orchestration/village.py`** - `VillageTeam.collaborate()` multi-agent loop adapted to `Agent`
+- **`club_harness/orchestration/roles/`** - PM/coder/researcher roles from ChipCliff, running on the club_harness LLM router (torch classifier optional, heuristic fallback built in)
+- **`apps/dashboard/`** - the ChipCliff FastAPI dashboard, kept as an optional app
+- **`docs/PROVENANCE.md`** - file-by-file source mapping; **`docs/memory-taxonomy.md`** - five-store memory design note from CascadeProjects
 
 ## Club Harness
 
