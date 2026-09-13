@@ -1,0 +1,31 @@
+├── main.py
+├── llm_integration.py
+├── pm_algorithm.py
+├── coder_algorithm.py
+├── researcher_algorithm.py
+├── xml_utils.py
+├── ui.py
+├── utils.py
+├── config/
+│   └── config.yaml
+├── static/
+│   ├── css/
+│   │   └── styles.css
+│   ├── js/
+│   │   └── scripts.js
+│   └── images/
+│       └── logo.png
+├── templates/
+│   ├── base.html
+│   ├── index.html
+│   ├── pm_dashboard.html
+│   ├── coder_dashboard.html
+│   ├── researcher_dashboard.html
+│   └── error.html
+├── tests/
+│   ├── test_pm_algorithm.py
+│   ├── test_coder_algorithm.py
+│   ├── test_researcher_algorithm.py
+│   └── test_llm_integration.py
+└── logs/
+    └── app.log - pm_algorithm only

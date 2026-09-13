@@ -1,0 +1,36 @@
+# ChipCliff Configuration - SECURE VERSION
+# Use environment variables for API keys - NEVER commit actual keys to git
+
+# API Configuration - Set these as environment variables
+anthropic_api_key: ${ANTHROPIC_API_KEY}
+openai_api_key: ${OPENAI_API_KEY}
+deepseek_api_key: ${DEEPSEEK_API_KEY}
+
+# Application Settings
+app:
+  name: "ChipCliff Collaborative Framework"
+  version: "1.0.0"
+  debug: ${DEBUG:-false}
+  
+# Role Configuration
+roles:
+  pm:
+    name: "Project Manager"
+    description: "Coordinates project requirements and manages workflow"
+  coder:
+    name: "Developer"
+    description: "Implements solutions and writes code"
+  researcher:
+    name: "Researcher"
+    description: "Gathers information and analyzes requirements"
+
+# LLM Settings
+llm:
+  default_provider: "anthropic"
+  max_tokens: 4000
+  temperature: 0.7
+  
+# Logging Configuration
+logging:
+  level: ${LOG_LEVEL:-INFO}
+  file: "logs/app.log"
