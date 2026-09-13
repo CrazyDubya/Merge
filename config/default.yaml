@@ -1,0 +1,63 @@
+# Default configuration for Village
+# This file contains the default settings for the Village framework
+
+# Village settings
+village:
+  name: "Default Village"
+  max_villagers: 50
+  communication_timeout: 30  # seconds
+  
+# LLM Provider settings
+llm:
+  default_provider: "openai"
+  timeout: 60  # seconds
+  max_retries: 3
+  retry_delay: 1  # seconds
+  
+  # Rate limiting
+  rate_limit:
+    requests_per_minute: 100
+    concurrent_requests: 10
+    
+  # Default generation parameters
+  generation:
+    max_tokens: 4000
+    temperature: 0.7
+    top_p: 1.0
+    
+# Memory settings
+memory:
+  max_history_length: 100
+  persistent_storage: false
+  storage_path: "./village_memory"
+  
+# Communication settings
+communication:
+  protocol: "direct"  # direct, queue, pubsub
+  message_timeout: 10  # seconds
+  max_message_size: 10240  # bytes
+  
+# Logging settings
+logging:
+  level: "INFO"
+  format: "structured"  # structured, simple
+  output: "console"  # console, file, both
+  file_path: "./logs/village.log"
+  
+# Security settings
+security:
+  input_validation: true
+  output_filtering: true
+  api_key_encryption: true
+  
+# Performance settings
+performance:
+  async_enabled: true
+  thread_pool_size: 10
+  connection_pool_size: 20
+  
+# Development settings
+development:
+  debug_mode: false
+  verbose_logging: false
+  profile_performance: false
