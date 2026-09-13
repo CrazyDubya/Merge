@@ -8,9 +8,13 @@ python-dotenv>=1.0.0
 # LLM Provider dependencies
 openai>=1.0.0
 anthropic>=0.7.0
+google-generativeai>=0.3.0
 
 # Optional dependencies for specific providers
 ollama>=0.1.0  # For local models
+
+# Storage backends
+asyncpg>=0.28.0  # PostgreSQL async driver
 
 # Async support
 asyncio-throttle>=1.0.0
