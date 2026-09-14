@@ -1,0 +1,143 @@
+#!/bin/bash
+#
+# Claude Daemon Throttle Control - Main Entry Point
+# Quick access to throttle management
+#
+
+DAEMON_ROOT="${HOME}/.claude/daemon"
+
+show_usage() {
+    cat << EOF
+Claude Daemon Throttle Control
+
+Usage:
+  throttle              Open interactive TUI for fine-tuning
+  throttle sat          Apply SAT(35%) preset (9-9 hours, +25% sleep)
+  throttle list         List all saved presets
+  throttle apply NAME   Apply specific preset by name
+  throttle current      Show current configuration
+  throttle help         Show this help
+
+Presets:
+  baseline    - Original settings (0% reduction)
+  light       - Light throttle (15% reduction)
+  medium      - Medium throttle (35% reduction)
+  heavy       - Heavy throttle (55% reduction)
+  SAT35       - SAT configuration (35% reduction)
+
+Examples:
+  throttle              # Open TUI
+  throttle sat          # Quick apply SAT preset
+  throttle apply light  # Apply light throttle
+  throttle current      # See what's active
+
+After applying:
+  Run: systemctl --user restart claude-daemon
+
+EOF
+}
+
+list_presets() {
+    if [ -f "${DAEMON_ROOT}/throttle-presets.json" ]; then
+        echo "Available Presets:"
+        echo ""
+        jq -r 'to_entries[] | "  \(.key): \(.value.name) - \(.value.description)"' \
+            "${DAEMON_ROOT}/throttle-presets.json"
+    else
+        echo "No presets found. Run 'throttle' to create defaults."
+    fi
+}
+
+show_current() {
+    if [ -f "${DAEMON_ROOT}/throttle-config.json" ]; then
+        echo "Current Throttle Configuration:"
+        echo ""
+        jq -r '
+            "  Sleep intervals: \(.min_sleep / 60)min / \(.default_sleep / 60)min / \(.max_sleep / 60)min",
+            "  Active hours: \(.active_start):00 - \(.active_end):00 EDT",
+            "  Action weights: Task=\(.task_weight) Reflection=\(.reflection_weight) Conversation=\(.conversation_weight)",
+            "  Reflection cooldown: \(.reflection_cooldown) minutes",
+            "  Chaos: \(if .chaos_enabled then "ON (\(.chaos_probability * 100)%)" else "OFF" end)"
+        ' "${DAEMON_ROOT}/throttle-config.json"
+
+        echo ""
+
+        # Calculate reduction
+        cd "$DAEMON_ROOT"
+        reduction=$(python3 -c "
+import json
+exec(open('claude-daemon-throttle-tui.py').read())
+config = ThrottleConfig()
+print(f'{config.calculate_reduction()}%')
+" 2>/dev/null || echo "unknown")
+
+        echo "  Estimated reduction: $reduction"
+    else
+        echo "No configuration found. Run 'throttle sat' or 'throttle' to configure."
+    fi
+}
+
+apply_preset() {
+    local preset_name="$1"
+
+    cd "$DAEMON_ROOT"
+
+    # Check if preset exists
+    if ! jq -e --arg name "$preset_name" '.[$name]' throttle-presets.json &>/dev/null; then
+        echo "ERROR: Preset '$preset_name' not found"
+        echo ""
+        list_presets
+        exit 1
+    fi
+
+    # Extract preset settings and save as current
+    jq --arg name "$preset_name" '.[$name].settings' throttle-presets.json > throttle-config.json
+
+    preset_info=$(jq -r --arg name "$preset_name" '.[$name] | "\(.name) - \(.description)"' throttle-presets.json)
+    echo "✓ Applied: $preset_info"
+    echo ""
+    echo "Run to activate:"
+    echo "  ${DAEMON_ROOT}/apply-throttle-config.sh"
+    echo "  systemctl --user restart claude-daemon"
+}
+
+case "${1:-}" in
+    "")
+        # Open TUI
+        cd "$DAEMON_ROOT"
+        python3 claude-daemon-throttle-tui.py
+        ;;
+    sat)
+        cd "$DAEMON_ROOT"
+        python3 claude-daemon-throttle-tui.py --apply-sat
+        echo ""
+        echo "Run to activate:"
+        echo "  ${DAEMON_ROOT}/apply-throttle-config.sh"
+        echo "  systemctl --user restart claude-daemon"
+        ;;
+    list)
+        list_presets
+        ;;
+    apply)
+        if [ -z "${2:-}" ]; then
+            echo "ERROR: Preset name required"
+            echo "Usage: throttle apply NAME"
+            echo ""
+            list_presets
+            exit 1
+        fi
+        apply_preset "$2"
+        ;;
+    current)
+        show_current
+        ;;
+    help|--help|-h)
+        show_usage
+        ;;
+    *)
+        echo "ERROR: Unknown command '$1'"
+        echo ""
+        show_usage
+        exit 1
+        ;;
+esac

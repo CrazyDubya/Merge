@@ -1,0 +1,22 @@
+{
+  "min_sleep": 750,
+  "default_sleep": 1125,
+  "max_sleep": 2250,
+  "night_sleep": 28800,
+  "active_start": 9,
+  "active_end": 21,
+  "task_weight": 0.5,
+  "reflection_weight": 0.3,
+  "conversation_weight": 0.2,
+  "reflection_cooldown": 60,
+  "chaos_enabled": true,
+  "chaos_probability": 0.1,
+  "thinking_levels": {
+    "experimenter": "think",
+    "optimizer": "think",
+    "maintainer": "think",
+    "architect": "think hard",
+    "skeptic": "think hard",
+    "auditor": "think harder"
+  }
+}

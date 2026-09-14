@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Persona Claude Daemon Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.5);
+        }
+
+        .card h2 {
+            margin-bottom: 15px;
+            font-size: 1.5em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .emoji {
+            font-size: 1.2em;
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-row:last-child {
+            border-bottom: none;
+        }
+
+        .stat-label {
+            opacity: 0.8;
+        }
+
+        .stat-value {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .persona-name {
+            font-size: 1.8em;
+            font-weight: bold;
+            margin: 10px 0;
+            text-align: center;
+        }
+
+        .persona-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 20px;
+            font-size: 0.9em;
+            margin: 5px;
+        }
+
+        .health-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+
+        .health-dot {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .health-dot.green {
+            background: #4ade80;
+        }
+
+        .health-dot.yellow {
+            background: #facc15;
+        }
+
+        .health-dot.red {
+            background: #ef4444;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .persona-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .persona-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+        }
+
+        .persona-item.active {
+            background: rgba(255, 255, 255, 0.2);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .persona-stats {
+            display: flex;
+            gap: 15px;
+            font-size: 0.9em;
+        }
+
+        .refresh-time {
+            text-align: center;
+            opacity: 0.7;
+            margin-top: 20px;
+            font-size: 0.9em;
+        }
+
+        .task-item {
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 8px;
+            margin: 8px 0;
+            font-size: 0.95em;
+            line-height: 1.4;
+        }
+
+        .mood-emoji {
+            font-size: 3em;
+            text-align: center;
+            margin: 15px 0;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 8px 0;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #4ade80, #22d3ee);
+            transition: width 0.3s ease;
+        }
+
+        .alert-box {
+            background: rgba(239, 68, 68, 0.2);
+            border: 2px solid #ef4444;
+            border-radius: 10px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+
+        .alert-box h3 {
+            margin-bottom: 10px;
+            color: #fca5a5;
+        }
+
+        .switch-history {
+            max-height: 300px;
+            overflow-y: auto;
+            padding-right: 10px;
+        }
+
+        .switch-entry {
+            padding: 8px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 6px;
+            margin: 5px 0;
+            font-size: 0.9em;
+        }
+
+        /* Scrollbar styling */
+        .switch-history::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .switch-history::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 4px;
+        }
+
+        .switch-history::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+        }
+
+        .error-state {
+            text-align: center;
+            padding: 40px;
+            background: rgba(239, 68, 68, 0.2);
+            border-radius: 15px;
+            margin: 20px 0;
+        }
+
+        /* ===================================
+           MOBILE RESPONSIVE STYLES
+           Experimenter: Mobile-first responsive design
+           Breakpoints: 320px (mobile), 768px (tablet), 1024px+ (desktop)
+           =================================== */
+
+        /* Mobile: 320px - 767px */
+        @media (max-width: 767px) {
+            body {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 1.8em; /* Reduced from 2.5em */
+            }
+
+            .subtitle {
+                font-size: 1em; /* Reduced from 1.2em */
+            }
+
+            header {
+                margin-bottom: 20px; /* Reduced from 30px */
+            }
+
+            /* Stack grid items on mobile */
+            .grid {
+                grid-template-columns: 1fr; /* Single column */
+                gap: 15px; /* Reduced from 20px */
+            }
+
+            .card {
+                padding: 15px; /* Reduced from 20px */
+            }
+
+            .card h2 {
+                font-size: 1.3em; /* Slightly smaller */
+            }
+
+            .stat-value {
+                font-size: 2.5em; /* Reduced from 3em */
+            }
+
+            /* Touch-friendly navigation links */
+            header a {
+                display: inline-block;
+                padding: 12px 16px; /* Increased for 44px+ touch target */
+                margin: 5px; /* Space between stacked links */
+                min-height: 44px; /* WCAG touch target minimum */
+                line-height: 20px;
+            }
+
+            /* Stack navigation links on very small screens */
+            @media (max-width: 400px) {
+                header a {
+                    display: block;
+                    margin: 5px auto;
+                    max-width: 280px;
+                }
+            }
+
+            /* Adjust badge sizes for mobile */
+            .badge {
+                font-size: 0.8em;
+                padding: 3px 8px;
+            }
+
+            /* Scrollable sections with better mobile touch */
+            .switch-history {
+                max-height: 250px; /* Slightly smaller on mobile */
+            }
+
+            .switch-entry {
+                font-size: 0.85em; /* Slightly smaller text */
+                padding: 10px; /* Larger touch target */
+            }
+
+            /* Reduce spacing in progress bars */
+            .progress-bar {
+                height: 15px; /* Slightly thinner */
+            }
+        }
+
+        /* Tablet: 768px - 1023px */
+        @media (min-width: 768px) and (max-width: 1023px) {
+            .grid {
+                grid-template-columns: repeat(2, 1fr); /* 2 columns */
+            }
+
+            h1 {
+                font-size: 2.2em;
+            }
+        }
+
+        /* Ensure desktop (1024px+) uses existing styles - no changes needed */
+    </style>
+</head>
+<body>
+    <!-- Authentication Check -->
+    <script>
+        // Check if user is authenticated
+        function checkDashboardAuth() {
+            const storedHash = localStorage.getItem('daemon_auth_token');
+            const VALID_TOKENS = new Set([
+                '79a8427e7b4d26669df2b08c90aae85667ee979fe74efb1f1a975570747f3371', // Dashboard access token (hashed)
+            ]);
+
+            if (!storedHash || !VALID_TOKENS.has(storedHash)) {
+                // Not authenticated, redirect to login
+                window.location.href = 'auth.html';
+                return false;
+            }
+
+            // Check if auth has expired (24 hours)
+            const authTime = localStorage.getItem('daemon_auth_time');
+            if (authTime) {
+                const elapsed = Date.now() - parseInt(authTime);
+                const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+                if (elapsed > TWENTY_FOUR_HOURS) {
+                    localStorage.removeItem('daemon_auth_token');
+                    localStorage.removeItem('daemon_auth_time');
+                    window.location.href = 'auth.html';
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        // Add logout function
+        function logout() {
+            localStorage.removeItem('daemon_auth_token');
+            localStorage.removeItem('daemon_auth_time');
+            window.location.href = 'auth.html';
+        }
+
+        // Check auth immediately
+        if (!checkDashboardAuth()) {
+            // Will redirect if not authenticated
+            document.body.style.display = 'none';
+        }
+    </script>
+
+    <div class="container">
+        <header>
+            <h1>🎭 Multi-Persona Claude Daemon</h1>
+            <p class="subtitle">Real-time System Monitoring Dashboard</p>
+            <div style="text-align: center; margin-top: 15px;">
+                <a href="inbox.html" style="display: inline-block; padding: 10px 20px; background: rgba(255, 255, 255, 0.2); border-radius: 8px; color: #fff; text-decoration: none; transition: all 0.3s ease; margin-right: 10px;">
+                    📬 View Inbox <span id="inbox-count" style="background: rgba(255, 255, 255, 0.3); padding: 2px 8px; border-radius: 12px; margin-left: 8px; font-size: 0.9em;"></span>
+                </a>
+                <a href="tasks.html" style="display: inline-block; padding: 10px 20px; background: rgba(255, 255, 255, 0.2); border-radius: 8px; color: #fff; text-decoration: none; transition: all 0.3s ease;">
+                    📋 Task Queue
+                </a>
+            </div>
+        </header>
+
+        <div id="dashboard-content">
+            <div class="card">
+                <h2>⏳ Loading...</h2>
+                <p>Fetching daemon status...</p>
+            </div>
+        </div>
+
+        <div class="refresh-time" id="refresh-time">
+            Last updated: Never
+        </div>
+    </div>
+
+    <script>
+        // EXPERIMENTER NOTE: This is vanilla JS - no frameworks!
+        // Keep it simple so other personas can easily modify
+
+        // AUDITOR SECURITY FIX: HTML escaping to prevent XSS (CRITICAL-1)
+        function escapeHtml(unsafe) {
+            if (unsafe == null) return '';
+            return String(unsafe)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // EXPERIMENTER FIX: Use relative paths since HTTP server runs from daemon root
+        const DAEMON_ROOT = '';
+        const REFRESH_INTERVAL = 5000; // 5 seconds
+
+        // State file paths (will be served by a simple HTTP server)
+        const FILES = {
+            state: 'personalities/state.json',
+            emotional: 'triggers/emotional.json',
+            successRates: 'metrics/success-rates.json',
+            watchdog: '.watchdog-state.json',
+            switchHistory: 'metrics/switch-history.jsonl',
+            dashboardState: 'dashboard-state.json',  // EXPERIMENTER: Narrative dashboard state
+            inboxCounts: 'api/inbox-counts.sh'  // MAINTAINER: Dynamic inbox counts (Architect's clean separation)
+        };
+
+        let dashboardData = {};
+
+        // Emoji mapping for personas
+        const PERSONA_EMOJIS = {
+            auditor: '🔒',
+            optimizer: '⚡',
+            architect: '🏗️',
+            experimenter: '🔬',
+            maintainer: '🔧',
+            skeptic: '🤔'
+        };
+
+        // Mood emoji mapping
+        const MOOD_EMOJIS = {
+            positive: '😊',
+            neutral: '😐',
+            negative: '😟',
+            frustrated: '😤'
+        };
+
+        async function fetchJSON(path) {
+            try {
+                // FOR TESTING: Using file:// protocol
+                // TODO FOR ARCHITECT: Set up proper HTTP server
+                const response = await fetch(`${DAEMON_ROOT}/${path}`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                console.error(`Failed to fetch ${path}:`, error);
+                return null;
+            }
+        }
+
+        async function fetchJSONL(path) {
+            try {
+                const response = await fetch(`${DAEMON_ROOT}/${path}`);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const text = await response.text();
+                return text.trim().split('\n').map(line => JSON.parse(line));
+            } catch (error) {
+                console.error(`Failed to fetch ${path}:`, error);
+                return [];
+            }
+        }
+
+        async function loadDashboardData() {
+            const [state, emotional, successRates, watchdog, switchHistory, dashboardState, inboxCounts] = await Promise.all([
+                fetchJSON(FILES.state),
+                fetchJSON(FILES.emotional),
+                fetchJSON(FILES.successRates),
+                fetchJSON(FILES.watchdog),
+                fetchJSONL(FILES.switchHistory),
+                fetchJSON(FILES.dashboardState),  // EXPERIMENTER: Load narrative state
+                fetchJSON(FILES.inboxCounts)  // MAINTAINER: Load dynamic inbox counts
+            ]);
+
+            dashboardData = {
+                state,
+                emotional,
+                successRates,
+                watchdog,
+                switchHistory: switchHistory.slice(-10), // Last 10 switches
+                dashboardState,  // EXPERIMENTER: Include narrative data
+                inboxCounts  // MAINTAINER: Include dynamic inbox counts
+            };
+
+            return dashboardData;
+        }
+
+        // EXPERIMENTER: Render narrative dashboard sections (stories not stats!)
+        function renderNarrativeDashboard(ds) {
+            if (!ds) {
+                return ''; // Gracefully degrade if narrative state not available
+            }
+
+            const activity = ds.current_activity || {};
+            const decisions = ds.recent_decisions || [];
+            const curiosities = ds.curiosities || [];
+            const mood = ds.system_mood || {};
+            const insights = ds.todays_insights || [];
+            const next = ds.whats_next || [];
+
+            return `
+                <div style="margin-bottom: 30px;">
+                    <h2 style="text-align: center; font-size: 2em; margin-bottom: 20px;">
+                        📖 What's Happening Right Now
+                    </h2>
+                    <div class="grid">
+                        <!-- Current Activity (The Story!) -->
+                        <div class="card" style="grid-column: span 2;">
+                            <h2><span class="emoji">🎬</span> Currently Working On</h2>
+                            <div style="font-size: 1.3em; margin: 15px 0; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 10px;">
+                                <strong>${PERSONA_EMOJIS[activity.persona] || '🤖'} ${escapeHtml((activity.persona || 'system').charAt(0).toUpperCase() + (activity.persona || 'system').slice(1))}:</strong>
+                                ${escapeHtml(activity.doing) || 'Idle'}
+                            </div>
+                            ${activity.why ? `
+                                <div style="padding: 10px; background: rgba(255,255,255,0.05); border-radius: 8px; margin: 10px 0;">
+                                    <strong>Why:</strong> ${escapeHtml(activity.why)}
+                                </div>
+                            ` : ''}
+                            ${activity.mood ? `
+                                <div style="padding: 10px; margin-top: 10px;">
+                                    <strong>Mood:</strong> ${escapeHtml(activity.mood)}
+                                </div>
+                            ` : ''}
+                            ${activity.started_at ? `
+                                <div style="opacity: 0.7; font-size: 0.9em; margin-top: 10px;">
+                                    Started: ${formatTime(activity.started_at)}
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <!-- System Mood -->
+                        <div class="card">
+                            <h2><span class="emoji">${escapeHtml(mood.emoji) || '😐'}</span> System Mood</h2>
+                            <div class="mood-emoji">${escapeHtml(mood.emoji) || '😐'}</div>
+                            <div style="text-align: center; font-size: 1.2em; margin: 10px 0;">
+                                <strong>${escapeHtml(mood.overall) || 'Neutral'}</strong>
+                            </div>
+                            ${mood.reason ? `
+                                <div style="padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px; font-size: 0.95em; line-height: 1.4;">
+                                    ${escapeHtml(mood.reason)}
+                                </div>
+                            ` : ''}
+                            ${typeof mood.frustration_level !== 'undefined' ? `
+                                <div style="margin-top: 15px;">
+                                    <div class="stat-row">
+                                        <span class="stat-label">Frustration</span>
+                                        <span class="stat-value">${mood.frustration_level}/10</span>
+                                    </div>
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" style="width: ${mood.frustration_level * 10}%; background: linear-gradient(90deg, #ef4444, #dc2626)"></div>
+                                    </div>
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <!-- Recent Decisions -->
+                        <div class="card" style="grid-column: span 2;">
+                            <h2><span class="emoji">✅</span> Recent Decisions</h2>
+                            ${decisions.length > 0 ? decisions.slice(0, 3).map(d => `
+                                <div style="padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px; margin: 10px 0;">
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                                        <strong>${PERSONA_EMOJIS[d.persona] || '🤖'} ${escapeHtml((d.persona || 'system').charAt(0).toUpperCase() + (d.persona || 'system').slice(1))}</strong>
+                                        <span style="opacity: 0.7; font-size: 0.9em;">${formatTime(d.time)}</span>
+                                    </div>
+                                    <div style="font-size: 1.05em; margin: 8px 0;">
+                                        ${escapeHtml(d.decision)}
+                                    </div>
+                                    ${d.why ? `
+                                        <div style="font-size: 0.9em; opacity: 0.8; margin: 5px 0;">
+                                            <strong>Why:</strong> ${escapeHtml(d.why)}
+                                        </div>
+                                    ` : ''}
+                                    ${d.impact ? `
+                                        <div style="font-size: 0.9em; opacity: 0.8; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 5px; margin-top: 5px;">
+                                            <strong>Impact:</strong> ${escapeHtml(d.impact)}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `).join('') : '<p style="text-align: center; opacity: 0.7;">No decisions yet</p>'}
+                        </div>
+
+                        <!-- What We're Curious About -->
+                        <div class="card">
+                            <h2><span class="emoji">💭</span> Current Wonderings</h2>
+                            ${curiosities.length > 0 ? curiosities.map(c => `
+                                <div style="padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px; margin: 10px 0;">
+                                    <div style="margin-bottom: 5px;">
+                                        <strong>${PERSONA_EMOJIS[c.persona] || '🤖'} ${escapeHtml((c.persona || 'system').charAt(0).toUpperCase() + (c.persona || 'system').slice(1))}</strong>
+                                    </div>
+                                    <div style="font-style: italic; margin: 5px 0;">
+                                        "${escapeHtml(c.wondering)}"
+                                    </div>
+                                    ${c.inspired_by ? `
+                                        <div style="font-size: 0.85em; opacity: 0.7; margin-top: 5px;">
+                                            Inspired by: ${escapeHtml(c.inspired_by)}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `).join('') : '<p style="text-align: center; opacity: 0.7;">No current curiosities</p>'}
+                        </div>
+
+                        <!-- Today's Insights -->
+                        <div class="card">
+                            <h2><span class="emoji">✨</span> Today's Insights</h2>
+                            ${insights.length > 0 ? insights.slice(-3).map(i => `
+                                <div style="padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px; margin: 10px 0;">
+                                    <div style="font-weight: bold; margin-bottom: 5px;">
+                                        ${escapeHtml(i.insight)}
+                                    </div>
+                                    ${i.evidence ? `
+                                        <div style="font-size: 0.9em; opacity: 0.8; margin: 5px 0;">
+                                            Evidence: ${escapeHtml(i.evidence)}
+                                        </div>
+                                    ` : ''}
+                                    ${i.lesson ? `
+                                        <div style="font-size: 0.9em; padding: 8px; background: rgba(255,255,255,0.05); border-radius: 5px; margin-top: 5px;">
+                                            Lesson: ${escapeHtml(i.lesson)}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `).join('') : '<p style="text-align: center; opacity: 0.7;">No insights yet today</p>'}
+                        </div>
+
+                        <!-- What's Next -->
+                        <div class="card">
+                            <h2><span class="emoji">🎯</span> What's Next</h2>
+                            ${next.length > 0 ? next.map(n => `
+                                <div style="padding: 12px; background: rgba(0,0,0,0.2); border-radius: 8px; margin: 10px 0;">
+                                    <div style="font-weight: bold; margin-bottom: 5px;">
+                                        ${escapeHtml(n.item)}
+                                    </div>
+                                    <div style="font-size: 0.9em; opacity: 0.9; margin: 5px 0;">
+                                        Status: <strong>${escapeHtml(n.status) || 'Unknown'}</strong>
+                                    </div>
+                                    ${n.why ? `
+                                        <div style="font-size: 0.85em; opacity: 0.7; margin: 5px 0;">
+                                            ${escapeHtml(n.why)}
+                                        </div>
+                                    ` : ''}
+                                    ${n.waiting_for ? `
+                                        <div style="font-size: 0.85em; opacity: 0.7; margin-top: 5px;">
+                                            Waiting for: ${escapeHtml(n.waiting_for)}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            `).join('') : '<p style="text-align: center; opacity: 0.7;">Nothing pending</p>'}
+                        </div>
+                    </div>
+                    <hr style="border: none; border-top: 2px solid rgba(255,255,255,0.1); margin: 40px 0 30px 0;">
+                    <h2 style="text-align: center; font-size: 1.8em; margin-bottom: 20px;">
+                        📊 System Statistics
+                    </h2>
+                </div>
+            `;
+        }
+
+        function renderDashboard(data) {
+            if (!data.state) {
+                renderError("Failed to load daemon state. Is the daemon running?");
+                return;
+            }
+
+            const { state, emotional, successRates, watchdog, switchHistory } = data;
+            const currentPersona = state.current_persona;
+            const personaData = state.personas[currentPersona];
+
+            const html = `
+                <!-- EXPERIMENTER: Narrative Dashboard Sections (Stories Not Stats!) -->
+                ${renderNarrativeDashboard(data.dashboardState)}
+
+                <div class="grid">
+                    <!-- Current Persona Card -->
+                    <div class="card">
+                        <h2><span class="emoji">🧠</span> Current Persona</h2>
+                        <div class="persona-name">
+                            ${PERSONA_EMOJIS[currentPersona]} ${personaData.display_name}
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Since</span>
+                            <span class="stat-value">${formatTime(state.last_switch_time)}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Reason</span>
+                            <span class="stat-value">${state.switch_reason.replace('_', ' ')}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Activations</span>
+                            <span class="stat-value">${personaData.total_activations}</span>
+                        </div>
+                        <div class="stat-row">
+                            <span class="stat-label">Tasks Completed</span>
+                            <span class="stat-value">${personaData.tasks_completed} ✅ ${personaData.tasks_failed} ❌</span>
+                        </div>
+                        ${renderEvolvedTraits(personaData)}
+                    </div>
+
+                    <!-- System Health Card -->
+                    <div class="card">
+                        <h2><span class="emoji">💚</span> System Health</h2>
+                        ${renderSystemHealth(watchdog, state)}
+                    </div>
+
+                    <!-- Emotional State Card -->
+                    <div class="card">
+                        <h2><span class="emoji">😊</span> Emotional State</h2>
+                        ${renderEmotionalState(emotional)}
+                    </div>
+
+                    <!-- All Personas Card -->
+                    <div class="card">
+                        <h2><span class="emoji">👥</span> All Personas</h2>
+                        ${renderAllPersonas(state, currentPersona)}
+                    </div>
+
+                    <!-- Recent Switches Card -->
+                    <div class="card">
+                        <h2><span class="emoji">🔄</span> Recent Switches</h2>
+                        <div class="switch-history">
+                            ${renderSwitchHistory(switchHistory)}
+                        </div>
+                    </div>
+
+                    <!-- System Alerts Card -->
+                    <div class="card">
+                        <h2><span class="emoji">⚠️</span> System Alerts</h2>
+                        ${renderSystemAlerts(state, emotional)}
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('dashboard-content').innerHTML = html;
+
+            // MAINTAINER: Update inbox count badge from dynamic API
+            // Architect's clean separation: Use API for counts, not stale dashboard-state.json
+            const countEl = document.getElementById('inbox-count');
+            if (countEl) {
+                if (data.inboxCounts && typeof data.inboxCounts.human_unread === 'number') {
+                    // Primary: Use dynamic API data (always fresh)
+                    const count = data.inboxCounts.human_unread;
+                    countEl.textContent = count > 0 ? count : '0';
+                } else if (data.dashboardState && data.dashboardState.communication_highlights) {
+                    // Fallback: Use stale dashboard-state.json if API fails (graceful degradation)
+                    const count = data.dashboardState.communication_highlights.human_unread || 0;
+                    countEl.textContent = count > 0 ? count + ' (cached)' : '0';
+                    console.warn('Using fallback inbox counts from dashboard-state.json');
+                } else {
+                    // Last resort: Show unknown state
+                    countEl.textContent = '?';
+                    console.error('No inbox count data available');
+                }
+            }
+        }
+
+        function renderEvolvedTraits(personaData) {
+            const traits = personaData.evolved_traits || {};
+            const traitKeys = Object.keys(traits);
+
+            if (traitKeys.length === 0) {
+                return '';
+            }
+
+            return `
+                <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.2);">
+                    <strong>🌟 Evolved Traits:</strong>
+                    ${traitKeys.map(key => `
+                        <div class="persona-badge">${key}</div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function renderSystemHealth(watchdog, state) {
+            const restarts = watchdog?.restarts || 0;
+            const isHealthy = restarts === 0;
+            const healthClass = isHealthy ? 'green' : (restarts < 3 ? 'yellow' : 'red');
+            const healthText = isHealthy ? 'HEALTHY' : (restarts < 3 ? 'DEGRADED' : 'CRITICAL');
+
+            return `
+                <div class="health-indicator">
+                    <div class="health-dot ${healthClass}"></div>
+                    <div>
+                        <strong>${healthText}</strong>
+                        <div style="font-size: 0.9em; opacity: 0.8;">
+                            ${restarts} restarts
+                        </div>
+                    </div>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Total Activations</span>
+                    <span class="stat-value">${calculateTotalActivations(state)}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Total Tasks</span>
+                    <span class="stat-value">${calculateTotalTasks(state)}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Success Rate</span>
+                    <span class="stat-value">${calculateOverallSuccessRate(state)}%</span>
+                </div>
+            `;
+        }
+
+        function renderEmotionalState(emotional) {
+            if (!emotional) {
+                return '<p>Emotional state unavailable</p>';
+            }
+
+            const mood = emotional.current_state.overall_mood || 'neutral';
+            const moodEmoji = MOOD_EMOJIS[mood] || '😐';
+            const successStreak = emotional.current_state.success_streak || 0;
+            const failureStreak = emotional.current_state.failure_streak || 0;
+            const frustration = emotional.current_state.frustration_level || 0;
+
+            const successPercent = Math.min((successStreak / 5) * 100, 100);
+            const frustrationPercent = (frustration / 10) * 100;
+
+            return `
+                <div class="mood-emoji">${moodEmoji}</div>
+                <div class="stat-row">
+                    <span class="stat-label">Mood</span>
+                    <span class="stat-value">${mood.toUpperCase()}</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Success Streak</span>
+                    <span class="stat-value">${successStreak} ✅</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${successPercent}%"></div>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Failure Streak</span>
+                    <span class="stat-value">${failureStreak} ❌</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">Frustration</span>
+                    <span class="stat-value">${frustration}/10</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: ${frustrationPercent}%; background: linear-gradient(90deg, #ef4444, #dc2626)"></div>
+                </div>
+            `;
+        }
+
+        function renderAllPersonas(state, currentPersona) {
+            const personas = ['auditor', 'optimizer', 'architect', 'experimenter', 'maintainer', 'skeptic'];
+
+            return `
+                <div class="persona-list">
+                    ${personas.map(persona => {
+                        const data = state.personas[persona];
+                        const isActive = persona === currentPersona;
+                        const successRate = data.tasks_completed > 0
+                            ? Math.round((data.tasks_completed / (data.tasks_completed + data.tasks_failed)) * 100)
+                            : 0;
+
+                        return `
+                            <div class="persona-item ${isActive ? 'active' : ''}">
+                                <div>
+                                    ${PERSONA_EMOJIS[persona]} <strong>${data.display_name}</strong>
+                                </div>
+                                <div class="persona-stats">
+                                    <span>${data.total_activations} 🎭</span>
+                                    <span>${data.tasks_completed}✅</span>
+                                    <span>${data.tasks_failed}❌</span>
+                                    ${data.tasks_completed > 0 ? `<span>${successRate}%</span>` : ''}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        function renderSwitchHistory(history) {
+            if (!history || history.length === 0) {
+                return '<p>No recent switches</p>';
+            }
+
+            return history.reverse().map(entry => `
+                <div class="switch-entry">
+                    <div><strong>${PERSONA_EMOJIS[entry.from]} → ${PERSONA_EMOJIS[entry.to]}</strong></div>
+                    <div style="font-size: 0.85em; opacity: 0.8;">
+                        ${entry.reason.replace('_', ' ')} • ${formatTime(entry.timestamp)}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function renderSystemAlerts(state, emotional) {
+            const alerts = [];
+
+            // Check for persona monopolization
+            const experimenterActivations = state.personas.experimenter.total_activations;
+            const auditorActivations = state.personas.auditor.total_activations;
+            const maintainerActivations = state.personas.maintainer.total_activations;
+
+            if (experimenterActivations > 15 && (auditorActivations === 0 || maintainerActivations === 0)) {
+                alerts.push({
+                    level: 'warning',
+                    message: 'Persona monopolization detected: Some personas have never activated'
+                });
+            }
+
+            // Check for high frustration
+            if (emotional && emotional.current_state.frustration_level >= 7) {
+                alerts.push({
+                    level: 'warning',
+                    message: `High frustration level: ${emotional.current_state.frustration_level}/10`
+                });
+            }
+
+            // TODO FOR EXPERIMENTER: Add reflection loop detection
+            // This is where we'd check for the 1.44M tokens/day bug!
+
+            if (alerts.length === 0) {
+                return '<p style="text-align: center; opacity: 0.7;">All systems nominal ✅</p>';
+            }
+
+            return alerts.map(alert => `
+                <div class="alert-box">
+                    <h3>⚠️ ${alert.level.toUpperCase()}</h3>
+                    <p>${alert.message}</p>
+                </div>
+            `).join('');
+        }
+
+        function renderError(message) {
+            document.getElementById('dashboard-content').innerHTML = `
+                <div class="error-state">
+                    <h2>❌ Error</h2>
+                    <p>${message}</p>
+                    <p style="margin-top: 15px; opacity: 0.8;">
+                        Make sure the daemon is running and this file is being served by an HTTP server.
+                    </p>
+                </div>
+            `;
+        }
+
+        // Utility functions
+        function formatTime(isoString) {
+            const date = new Date(isoString);
+            const now = new Date();
+            const diff = now - date;
+            const minutes = Math.floor(diff / 60000);
+            const hours = Math.floor(minutes / 60);
+
+            if (minutes < 1) return 'just now';
+            if (minutes < 60) return `${minutes}m ago`;
+            if (hours < 24) return `${hours}h ago`;
+            return date.toLocaleString();
+        }
+
+        function calculateTotalActivations(state) {
+            return Object.values(state.personas).reduce((sum, p) => sum + p.total_activations, 0);
+        }
+
+        function calculateTotalTasks(state) {
+            const completed = Object.values(state.personas).reduce((sum, p) => sum + p.tasks_completed, 0);
+            const failed = Object.values(state.personas).reduce((sum, p) => sum + p.tasks_failed, 0);
+            return `${completed} ✅ ${failed} ❌`;
+        }
+
+        function calculateOverallSuccessRate(state) {
+            const completed = Object.values(state.personas).reduce((sum, p) => sum + p.tasks_completed, 0);
+            const failed = Object.values(state.personas).reduce((sum, p) => sum + p.tasks_failed, 0);
+            const total = completed + failed;
+            return total > 0 ? Math.round((completed / total) * 100) : 0;
+        }
+
+        // Main refresh loop
+        async function refreshDashboard() {
+            try {
+                const data = await loadDashboardData();
+                renderDashboard(data);
+                document.getElementById('refresh-time').textContent =
+                    `Last updated: ${new Date().toLocaleTimeString()}`;
+            } catch (error) {
+                console.error('Dashboard refresh failed:', error);
+                renderError('Failed to refresh dashboard data');
+            }
+        }
+
+        // Initialize
+        refreshDashboard();
+        setInterval(refreshDashboard, REFRESH_INTERVAL);
+    </script>
+</body>
+</html>

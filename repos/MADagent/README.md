@@ -1,0 +1,2 @@
+# MADagent
+A bad idea 

@@ -1,0 +1,97 @@
+{
+  "description": "Emotional state tracking and trigger thresholds",
+  "current_state": {
+    "frustration_level": 0,
+    "success_streak": 18,
+    "failure_streak": 0,
+    "time_stuck_minutes": 0,
+    "last_success_time": "2025-10-28T17:12:34Z",
+    "last_failure_time": "2025-10-26T22:26:04Z",
+    "overall_mood": "positive"
+  },
+  "thresholds": {
+    "high_frustration": {
+      "value": 3,
+      "description": "3+ consecutive failures triggers frustration",
+      "action": "switch_to_different_problem_solving_style"
+    },
+    "stuck_threshold": {
+      "value": 30,
+      "description": "Stuck on same task for 30+ minutes",
+      "action": "random_switch_for_fresh_perspective"
+    },
+    "success_streak_high": {
+      "value": 5,
+      "description": "5+ consecutive successes",
+      "action": "summon_experimenter_for_creative_exploration"
+    },
+    "failure_invoke_skeptic": {
+      "value": 2,
+      "description": "2+ recent failures",
+      "action": "summon_skeptic_to_question_approach"
+    }
+  },
+  "switch_rules": {
+    "on_frustration": {
+      "description": "When frustrated, switch to complementary persona",
+      "mappings": {
+        "auditor": [
+          "experimenter",
+          "optimizer"
+        ],
+        "optimizer": [
+          "architect",
+          "maintainer"
+        ],
+        "architect": [
+          "experimenter",
+          "optimizer"
+        ],
+        "experimenter": [
+          "skeptic",
+          "architect"
+        ],
+        "maintainer": [
+          "experimenter",
+          "optimizer"
+        ],
+        "skeptic": [
+          "experimenter",
+          "architect"
+        ]
+      }
+    },
+    "on_failure_streak": {
+      "description": "Multiple failures -> bring in Skeptic or Auditor",
+      "preferred_personas": [
+        "skeptic",
+        "auditor"
+      ],
+      "weight": 0.8
+    },
+    "on_success_streak": {
+      "description": "High success -> let Experimenter explore",
+      "preferred_personas": [
+        "experimenter"
+      ],
+      "weight": 0.7
+    },
+    "on_stuck": {
+      "description": "Stuck -> random switch for fresh perspective",
+      "exclude_current": true,
+      "method": "random"
+    }
+  },
+  "decay": {
+    "description": "How emotional states decay over time",
+    "frustration_decay_per_success": 1,
+    "success_streak_reset_on_failure": true,
+    "failure_streak_reset_on_success": true,
+    "stuck_timer_reset_on_completion": true
+  },
+  "history": {
+    "description": "Recent emotional events",
+    "max_entries": 100,
+    "entries": []
+  }
+}

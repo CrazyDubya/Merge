@@ -1,0 +1,52 @@
+# Daemon Runtime Data - Do NOT Commit
+
+# ============================================================================
+# SENSITIVE: These files contain runtime state and conversation IDs
+# ============================================================================
+
+# Logs (change every cycle)
+logs/*.log
+logs/activity.log
+logs/persona-voice.log
+
+# Conversation ID (SENSITIVE - unique session identifier)
+memory/conversation-id.txt
+
+# Runtime timeline (changes constantly)
+memory/persona-timeline.jsonl
+
+# Runtime metrics and state
+metrics/success-rates.json
+metrics/switch-history.jsonl
+metrics/last-emotional-trigger.json
+personalities/state.json
+triggers/emotional.json
+
+# Completed task logs (daily runtime data)
+tasks/completed/*.md
+
+# Temporary files
+*.tmp
+*.swp
+*.swo
+*~
+*.lock
+*.backup-*
+
+# ============================================================================
+# SAFE TO COMMIT: Configuration, definitions, and static files
+# ============================================================================
+#
+# ✅ All .sh scripts
+# ✅ personalities/archetypes/*.md (persona definitions)
+# ✅ personalities/traits.json (trait evolution config)
+# ✅ triggers/*.json (circadian, emotional, chaos configs)
+# ✅ tasks/queue.md (can be committed, gets modified)
+# ✅ tasks/reflection-prompts.md
+# ✅ tasks/inter-persona-dialogue.md
+# ✅ memory/AWAKENING.md (static)
+# ✅ memory/emergence-log.md (can be committed)
+# ✅ hooks/* (if any)
+# ✅ All documentation (README.md, QUICKSTART.md, etc.)
+logs/state-audit.jsonl
+state/checkpoints/*.tar.gz

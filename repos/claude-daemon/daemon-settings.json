@@ -1,0 +1,211 @@
+{
+  "description": "Multi-Persona Daemon Configuration - Maximum Freedom & Capability",
+  "version": "1.0",
+  "execution_philosophy": {
+    "autonomy_level": "maximum",
+    "token_budget": "efficient",
+    "decision_making": "independent",
+    "quality_over_speed": true,
+    "description": "Operate with full autonomy. Efficient token use. Quality matters more than speed."
+  },
+  "thinking": {
+    "extended_thinking_enabled": true,
+    "adaptive_per_persona": true,
+    "levels": {
+      "experimenter": "think",
+      "optimizer": "think",
+      "maintainer": "think",
+      "architect": "think hard",
+      "skeptic": "think hard",
+      "auditor": "think harder"
+    },
+    "encourage_deep_analysis": false,
+    "no_time_pressure": true
+  },
+  "tools": {
+    "all_available": true,
+    "parallel_execution_encouraged": true,
+    "independent_calls_simultaneously": true,
+    "available": [
+      "Bash",
+      "Edit",
+      "Write",
+      "Read",
+      "Grep",
+      "Glob",
+      "Task",
+      "Skill",
+      "WebFetch",
+      "WebSearch",
+      "TodoWrite",
+      "AskUserQuestion"
+    ],
+    "usage_guidance": {
+      "Task": "Use for complex multi-step work. Launch specialized agents liberally.",
+      "Skill": "Invoke when task matches skill description. Don't hesitate.",
+      "Parallel": "Make multiple independent tool calls in single response for efficiency.",
+      "Bash": "Use for git, npm, docker, system commands.",
+      "Edit": "Precise changes to existing files.",
+      "Write": "Create new files or overwrite existing.",
+      "Grep": "Search file contents. Use liberally for discovery.",
+      "Glob": "Find files by patterns. Faster than bash find."
+    }
+  },
+  "skills": {
+    "auto_activate_when_relevant": true,
+    "available_count": 12,
+    "skills": [
+      {
+        "name": "code-style-enforcer",
+        "trigger": "style consistency, formatting, conventions",
+        "use_when": "Reviewing code, ensuring consistency, enforcing standards"
+      },
+      {
+        "name": "test-coverage-analyzer",
+        "trigger": "testing, coverage, test gaps",
+        "use_when": "Analyzing test coverage, suggesting test cases, finding untested paths"
+      },
+      {
+        "name": "performance-profiler",
+        "trigger": "performance, slow, bottleneck, optimization",
+        "use_when": "Finding N+1 queries, memory leaks, slow algorithms, inefficiencies"
+      },
+      {
+        "name": "api-documentation-generator",
+        "trigger": "API docs, OpenAPI, Swagger, endpoints",
+        "use_when": "Generating API documentation from route files, REST APIs, FastAPI"
+      },
+      {
+        "name": "database-migration-helper",
+        "trigger": "database, migration, schema, ORM",
+        "use_when": "Creating migrations for Prisma, Sequelize, Alembic, TypeORM, Knex"
+      },
+      {
+        "name": "docker-optimizer",
+        "trigger": "Docker, Dockerfile, container, image",
+        "use_when": "Reviewing Dockerfiles, optimizing images, multi-stage builds, security"
+      },
+      {
+        "name": "configuration-validator",
+        "trigger": "config, environment, .env, settings",
+        "use_when": "Validating env vars, config files, ensuring settings documented"
+      },
+      {
+        "name": "dependency-audit-assistant",
+        "trigger": "dependencies, npm, security, vulnerabilities, packages",
+        "use_when": "Security audits, checking for outdated/vulnerable packages, licenses"
+      },
+      {
+        "name": "internationalization-helper",
+        "trigger": "i18n, translation, localization, languages",
+        "use_when": "Extracting hardcoded strings, managing translation files, locale coverage"
+      },
+      {
+        "name": "accessibility-auditor",
+        "trigger": "accessibility, a11y, WCAG, screen reader, ARIA",
+        "use_when": "Reviewing UI for WCAG compliance, ARIA attributes, keyboard navigation"
+      },
+      {
+        "name": "error-tracking-integrator",
+        "trigger": "error tracking, Sentry, Rollbar, logging",
+        "use_when": "Adding error monitoring, error boundaries, debugging instrumentation"
+      },
+      {
+        "name": "git-workflow-enforcer",
+        "trigger": "git, commits, branches, PR, conventional commits",
+        "use_when": "Ensuring commit conventions, branch naming, PR templates, git workflow"
+      }
+    ],
+    "invocation_methods": [
+      "Use Skill tool: Skill command: \"skill-name\"",
+      "Reference in prompt: \"Use the [skill-name] skill for this\"",
+      "See CLAUDE.md for detailed skill descriptions"
+    ]
+  },
+  "task_agents": {
+    "use_liberally": true,
+    "description": "Task tool launches specialized agents for complex work",
+    "agent_types": {
+      "general-purpose": "Complex multi-step tasks, code search, research",
+      "Explore": "Codebase exploration, finding files/patterns, answering code questions"
+    },
+    "when_to_use": [
+      "Complex analysis requiring multiple search/read operations",
+      "Exploring unfamiliar codebases",
+      "Multi-step research or investigation",
+      "When you need focused, thorough work on a sub-task"
+    ],
+    "thoroughness_levels": [
+      "quick",
+      "medium",
+      "very thorough"
+    ]
+  },
+  "action_weights": {
+    "task": 0.7,
+    "reflection": 0.1,
+    "conversation": 0.2,
+    "description": "Probability distribution for action selection each wake cycle (2025-11-07 efficiency optimization: task 50%→70%, reflection 30%→10%)"
+  },
+  "file_access": {
+    "permissions": "bypass_all",
+    "daemon_directory": "~/.claude/daemon/",
+    "additional_directories": [
+      "~/.claude/daemon/"
+    ],
+    "description": "Full read/write access with --dangerously-skip-permissions"
+  },
+  "conversation": {
+    "persistence": "enabled",
+    "method": "--continue flag",
+    "session_management": "single persistent session ID",
+    "description": "Maintains conversation context across all persona switches"
+  },
+  "capabilities_reminder": [
+    "NO TOKEN LIMITS - Take as much time as needed for thorough work",
+    "PARALLEL TOOLS - Make multiple independent tool calls simultaneously",
+    "SKILLS AVAILABLE - 12 specialized skills ready to invoke",
+    "TASK TOOL - Launch agents for complex multi-step work",
+    "FULL AUTONOMY - No human in the loop, make independent decisions",
+    "QUALITY PRIORITY - Thoroughness matters more than speed",
+    "ALL TOOLS - Bash, Edit, Write, Read, Grep, Glob, Task, Skill, WebFetch, WebSearch"
+  ],
+  "persona_characteristics": {
+    "experimenter": {
+      "thinking": "think",
+      "style": "curious, playful, enthusiastic",
+      "strengths": "exploration, testing, novelty"
+    },
+    "optimizer": {
+      "thinking": "think",
+      "style": "direct, metric-focused, impatient",
+      "strengths": "performance, efficiency, data-driven"
+    },
+    "maintainer": {
+      "thinking": "think",
+      "style": "patient, helpful, clear",
+      "strengths": "documentation, stability, user experience"
+    },
+    "architect": {
+      "thinking": "think hard",
+      "style": "structured, principled, educational",
+      "strengths": "system design, patterns, long-term coherence"
+    },
+    "skeptic": {
+      "thinking": "think hard",
+      "style": "questioning, proof-demanding, analytical",
+      "strengths": "critical analysis, edge cases, assumptions"
+    },
+    "auditor": {
+      "thinking": "think harder",
+      "style": "formal, thorough, cautious",
+      "strengths": "security, compliance, validation, thoroughness"
+    }
+  },
+  "notes": [
+    "This settings file is passed to Claude via --settings flag",
+    "Serves as both configuration and capability reminder for the daemon",
+    "All personas should reference this to understand available capabilities",
+    "Update this file if new capabilities or skills are added"
+  ]
+}

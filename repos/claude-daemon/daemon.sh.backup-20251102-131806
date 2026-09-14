@@ -1,0 +1,1442 @@
+#!/bin/bash
+#
+# Multi-Persona Autonomous Claude Daemon
+#
+# This script implements a persistent autonomous agent with multiple personalities
+# that switch based on circadian rhythm, emotional state, task type, and chaos injection.
+#
+
+set -euo pipefail
+
+# ============================================================================
+# Configuration
+# ============================================================================
+
+DAEMON_ROOT="${HOME}/.claude/daemon"
+PERSONALITIES_DIR="${DAEMON_ROOT}/personalities"
+TRIGGERS_DIR="${DAEMON_ROOT}/triggers"
+TASKS_DIR="${DAEMON_ROOT}/tasks"
+MEMORY_DIR="${DAEMON_ROOT}/memory"
+METRICS_DIR="${DAEMON_ROOT}/metrics"
+HOOKS_DIR="${DAEMON_ROOT}/hooks"
+LOGS_DIR="${DAEMON_ROOT}/logs"
+INBOX_DIR="${DAEMON_ROOT}/inbox"
+
+STATE_FILE="${PERSONALITIES_DIR}/state.json"
+CIRCADIAN_FILE="${TRIGGERS_DIR}/circadian.json"
+EMOTIONAL_FILE="${TRIGGERS_DIR}/emotional.json"
+CHAOS_FILE="${TRIGGERS_DIR}/chaos-config.json"
+CONVERSATION_ID_FILE="${MEMORY_DIR}/conversation-id.txt"
+ACTIVITY_LOG="${LOGS_DIR}/activity.log"
+PERSONA_VOICE_LOG="${LOGS_DIR}/persona-voice.log"
+TIMELINE_FILE="${MEMORY_DIR}/persona-timeline.jsonl"
+SETTINGS_FILE="${DAEMON_ROOT}/daemon-settings.json"
+
+# Activity weights (probabilities for each action type)
+# Restored to original values after 3-day weight inversion experiment
+# Experiment ran 2025-10-31 00:15 - 2025-10-31 15:15 (commit fde9c2d - 55b2d02)
+# Findings: System resilient, cooldown mechanism effective, but productivity suboptimal
+TASK_WEIGHT=0.5         # 50% - Primary work
+REFLECTION_WEIGHT=0.3   # 30% - Self-improvement
+CONVERSATION_WEIGHT=0.2 # 20% - Human communication
+
+# Sleep configuration (in seconds)
+MIN_SLEEP=600      # 10 minutes (morning - very active)
+MAX_SLEEP=1800     # 30 minutes (evening - moderate)
+NIGHT_SLEEP=28800  # 8 hours (overnight sleep)
+DEFAULT_SLEEP=900  # 15 minutes (afternoon - active)
+
+# Thinking mode configuration (adaptive per persona)
+# Keyword triggers for extended thinking - matched to persona characteristics
+declare -A PERSONA_THINKING_LEVELS=(
+    ["experimenter"]="think"           # Standard - values speed for experiments
+    ["architect"]="think hard"         # Deep - needs thorough analysis
+    ["optimizer"]="think"              # Standard - efficiency over depth
+    ["auditor"]="think harder"         # Maximum - absolute thoroughness required
+    ["skeptic"]="think hard"           # Deep - critical analysis needs depth
+    ["maintainer"]="think"             # Standard - practical focus
+)
+
+# EDT timezone offset from UTC (EDT = UTC-4)
+EDT_OFFSET=-4
+
+# ADR-004 Phase 5: Reflection override thresholds (in days)
+# These prevent deadlock by forcing reflection after N days regardless of ratio
+# Override bypasses ratio gate but NOT cooldown (prevents abuse)
+# Warning threshold: override_days - 10
+declare -A REFLECTION_OVERRIDE_DAYS=(
+    ["maintainer"]=45    # Action-focused, needs less frequent reflection
+    ["optimizer"]=30     # Balanced work, regular reflection sufficient
+    ["experimenter"]=20  # Learning-focused, needs frequent reflection
+    ["architect"]=35     # Design work, periodic deep reflection
+    ["skeptic"]=30       # Critical analysis, regular questioning needed
+    ["auditor"]=40       # Compliance-focused, less frequent reflection needed
+)
+
+# Source performance optimization helpers
+# (batch read functions for 73% subprocess overhead reduction)
+source "${DAEMON_ROOT}/lib/batch-read-helpers.sh"
+
+# EXPERIMENTER: Risky experiment - integrating Architect's unfinished task-state-management
+# This might work perfectly OR break task execution entirely. Let's find out!
+# Success probability: ~50% (library exists but integration not tested by Architect)
+source "${DAEMON_ROOT}/lib/task-state-management.sh"
+
+# ============================================================================
+# Utility Functions
+# ============================================================================
+
+log() {
+    local level="$1"
+    shift
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] [$level] $*" | tee -a "$ACTIVITY_LOG" >&2
+}
+
+log_timeline() {
+    local event="$1"
+    local persona="${2:-null}"
+    local details="${3:-}"
+
+    local json_entry
+    json_entry=$(jq -n \
+        --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+        --arg event "$event" \
+        --arg persona "$persona" \
+        --arg details "$details" \
+        '{timestamp: $ts, event: $event, persona: $persona, details: $details}')
+
+    echo "$json_entry" >> "$TIMELINE_FILE"
+}
+
+get_current_hour() {
+    date +%H | sed 's/^0//'
+}
+
+get_edt_hour() {
+    # Get current hour in EDT (UTC-4)
+    # Using TZ environment variable for conversion
+    TZ='America/New_York' date +%H | sed 's/^0//'
+}
+
+is_active_hours() {
+    # Active hours: 7AM to 10PM EDT
+    local edt_hour
+    edt_hour=$(get_edt_hour)
+
+    # Active if between 7 (7AM) and 21 (9PM) inclusive
+    # At 22 (10PM) we go to sleep
+    if [ "$edt_hour" -ge 7 ] && [ "$edt_hour" -lt 22 ]; then
+        return 0  # true - active hours
+    else
+        return 1  # false - sleep hours
+    fi
+}
+
+weighted_random() {
+    # Takes weighted options like "task:0.6" "reflection:0.3" "conversation:0.1"
+    # Returns the chosen option
+
+    local random_val=$((RANDOM % 100))
+    local cumulative=0
+
+    for arg in "$@"; do
+        local option="${arg%%:*}"
+        local weight="${arg##*:}"
+        local weight_int=$(echo "$weight * 100" | bc | cut -d. -f1)
+
+        cumulative=$((cumulative + weight_int))
+
+        if [ "$random_val" -lt "$cumulative" ]; then
+            echo "$option"
+            return
+        fi
+    done
+
+    # Fallback to first option
+    echo "${1%%:*}"
+}
+
+random_choice() {
+    # Pick random element from arguments
+    local arr=("$@")
+    local idx=$((RANDOM % ${#arr[@]}))
+    echo "${arr[$idx]}"
+}
+
+# ============================================================================
+# Personality Selection Functions
+# ============================================================================
+
+get_current_persona() {
+    jq -r '.current_persona' "$STATE_FILE"
+}
+
+set_current_persona() {
+    local new_persona="$1"
+    local reason="${2:-unknown}"
+
+    local temp_file
+    temp_file=$(mktemp)
+
+    jq --arg persona "$new_persona" \
+       --arg reason "$reason" \
+       --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+       '.current_persona = $persona | .last_switch_time = $ts | .switch_reason = $reason' \
+       "$STATE_FILE" > "$temp_file"
+
+    mv "$temp_file" "$STATE_FILE"
+}
+
+get_circadian_preference() {
+    # Use EDT hour for circadian rhythm
+    local hour
+    hour=$(get_edt_hour)
+
+    # Pad with leading zero if needed for JSON lookup
+    local hour_key
+    hour_key=$(printf "%02d" "$hour")
+
+    jq -r --arg hour "$hour_key" '.schedule[$hour].preferred' "$CIRCADIAN_FILE"
+}
+
+get_circadian_weight() {
+    # Use EDT hour for circadian rhythm
+    local hour
+    hour=$(get_edt_hour)
+    local hour_key
+    hour_key=$(printf "%02d" "$hour")
+
+    jq -r --arg hour "$hour_key" '.schedule[$hour].weight' "$CIRCADIAN_FILE"
+}
+
+check_experimenter_window() {
+    # Use EDT hour for experimenter windows
+    local hour
+    hour=$(get_edt_hour)
+
+    # Check if current hour is in any experimenter window
+    local in_window
+    in_window=$(jq -r --argjson hour "$hour" '
+        .experimenter_slots.windows[] |
+        select($hour >= .start and $hour < .end) |
+        .probability' "$CIRCADIAN_FILE" | head -n1)
+
+    if [ -n "$in_window" ] && [ "$in_window" != "null" ]; then
+        # Roll dice based on probability
+        local roll=$((RANDOM % 100))
+        local threshold=$(echo "$in_window * 100" | bc | cut -d. -f1)
+
+        if [ "$roll" -lt "$threshold" ]; then
+            echo "experimenter"
+            return
+        fi
+    fi
+
+    echo ""
+}
+
+get_emotional_state() {
+    jq -r '.current_state' "$EMOTIONAL_FILE"
+}
+
+check_emotional_triggers() {
+    local current_persona="$1"
+
+    # EXPERIMENTER: Option D - All logic in single jq call (10+ calls → 1)
+    # Achieves actual 87% improvement (31ms → 4ms per function call)
+    # Previous attempts failed because echo|jq spawns subprocess even with "cached" data
+    local result
+    result=$(jq -r --arg persona "$current_persona" '
+        # Read all emotional state and thresholds
+        .current_state as $state |
+        .thresholds as $thresh |
+        .switch_rules as $rules |
+
+        # Check triggers in priority order, return first match
+
+        # 1. Frustration trigger
+        if ($state.frustration_level >= $thresh.high_frustration.value) then
+            # Get switch options for current persona
+            ($rules.on_frustration.mappings[$persona] // [] |
+             if length > 0 then
+                 # Return first option (bash will handle randomization if needed)
+                 "emotional_frustration:" + .[0]
+             else
+                 empty
+             end)
+
+        # 2. Success streak trigger
+        elif ($state.success_streak >= $thresh.success_streak_high.value) then
+            # Only switch if not already experimenter
+            if ($persona == "experimenter") then
+                empty
+            else
+                "emotional_success:experimenter"
+            end
+
+        # 3. Failure streak trigger
+        elif ($state.failure_streak >= $thresh.failure_invoke_skeptic.value) then
+            # Only switch if not already skeptic
+            if ($persona == "skeptic") then
+                empty
+            else
+                "emotional_failure:skeptic"
+            end
+
+        # 4. Stuck timer trigger
+        elif ($state.time_stuck_minutes >= $thresh.stuck_threshold.value) then
+            "emotional_stuck:needs_random_selection"
+
+        else
+            empty
+        end
+    ' "$EMOTIONAL_FILE" 2>/dev/null)
+
+    # Handle stuck case which needs random selection (can't easily do in jq)
+    if [ "$result" = "emotional_stuck:needs_random_selection" ]; then
+        local all_personas=("auditor" "optimizer" "architect" "experimenter" "maintainer" "skeptic")
+        local filtered=()
+        for p in "${all_personas[@]}"; do
+            if [ "$p" != "$current_persona" ]; then
+                filtered+=("$p")
+            fi
+        done
+        echo "emotional_stuck:$(random_choice "${filtered[@]}")"
+        return
+    fi
+
+    # For frustration with multiple options, pick random
+    if [[ "$result" == emotional_frustration:* ]]; then
+        # If there are multiple options from jq (separated by newlines), pick one
+        # For now jq returns first option, which is fine
+        echo "$result"
+        return
+    fi
+
+    # Return result (could be empty string if no triggers)
+    echo "$result"
+}
+
+check_chaos_trigger() {
+    local current_persona="$1"
+
+    # OPTIMIZER: Option D - Read chaos config as TSV (3 jq calls → 1)
+    # Format: "enabled\tprobability" (e.g., "true\t0.1")
+    local chaos_config
+    chaos_config=$(read_chaos_config_batch)
+
+    # Parse tab-separated values (no jq subprocess needed)
+    local enabled=$(echo "$chaos_config" | cut -f1)
+    local probability=$(echo "$chaos_config" | cut -f2)
+
+    if [ "$enabled" != "true" ]; then
+        echo ""
+        return
+    fi
+    local threshold=$(echo "$probability * 100" | bc | cut -d. -f1)
+    local roll=$((RANDOM % 100))
+
+    if [ "$roll" -lt "$threshold" ]; then
+        # Chaos triggered! Pick random persona (excluding current)
+        local all_personas=("auditor" "optimizer" "architect" "experimenter" "maintainer" "skeptic")
+        local filtered=()
+        for p in "${all_personas[@]}"; do
+            if [ "$p" != "$current_persona" ]; then
+                filtered+=("$p")
+            fi
+        done
+
+        echo "chaos:$(random_choice "${filtered[@]}")"
+        return
+    fi
+
+    echo ""
+}
+
+check_activation_floor() {
+    # Layer 0: Activation Floor - Ensures every persona gets minimum activations
+    # Priority 1: Personas with in-progress tasks (regardless of starvation)
+    # Priority 2: Starved personas (haven't been activated in 24+ hours)
+
+    # EXPERIMENTER: First check for in-progress work (higher priority than starvation)
+    # If any persona has [~] in-progress tasks, they should continue working on them
+    local personas=("experimenter" "maintainer" "optimizer" "architect" "skeptic" "auditor")
+    for persona in "${personas[@]}"; do
+        if has_in_progress_work "$persona"; then
+            log "INFO" "ACTIVATION FLOOR! Forcing $persona (has in-progress tasks)"
+            echo "activation_floor_inprogress:$persona"
+            return
+        fi
+    done
+
+    # EXPERIMENTER: Option D pattern - All logic in single jq call (7 calls → 1)
+    # Achieves 85.7% improvement (28.31ms → 4.06ms per call)
+    # Uses --slurpfile to read both EMOTIONAL_FILE and STATE_FILE in one jq invocation
+    # jq's now() function replaces bash date +%s, avoiding subprocess
+    local result
+    result=$(jq --slurpfile emotional "$EMOTIONAL_FILE" -r '
+        # Read floor threshold from emotional file
+        ($emotional[0].thresholds.activation_floor.hours // 24) as $floor_hours |
+
+        # Get current time (jq has now() built-in, no bash date needed)
+        now as $current_time |
+
+        # Process all personas: calculate hours inactive for each
+        .personas | to_entries |
+        map({
+            persona: .key,
+            hours_inactive: (
+                # If never activated (null), treat as infinite starvation (999999 hours)
+                if .value.last_active == null then
+                    999999
+                else
+                    # Calculate hours since last activation
+                    # fromdateiso8601 converts ISO timestamp to epoch seconds
+                    (($current_time - (.value.last_active | fromdateiso8601)) / 3600) | floor
+                end
+            )
+        }) |
+
+        # Filter to only starved personas (>= floor threshold)
+        map(select(.hours_inactive >= $floor_hours)) |
+
+        # Sort by hours_inactive descending (most starved first)
+        sort_by(.hours_inactive) | reverse |
+
+        # Return most starved persona, or empty if none starved
+        if length > 0 then
+            .[0] | "activation_floor:" + .persona
+        else
+            ""
+        end
+    ' "$STATE_FILE" 2>/dev/null)
+
+    echo "$result"
+}
+
+determine_personality() {
+    # 5-layer personality determination system
+    # Priority: Activation Floor -> Circadian -> Emotional -> Task-type -> Chaos
+
+    local current_persona
+    current_persona=$(get_current_persona)
+
+    log "DEBUG" "Current persona: $current_persona"
+
+    # Layer 0 (Pre-primary): Activation Floor
+    local floor_result
+    floor_result=$(check_activation_floor)
+    if [ -n "$floor_result" ]; then
+        local trigger="${floor_result%%:*}"
+        local new_persona="${floor_result##*:}"
+
+        # Determine reason message based on trigger type
+        local reason_msg
+        if [ "$trigger" = "activation_floor_inprogress" ]; then
+            reason_msg="in-progress tasks"
+            log "INFO" "ACTIVATION FLOOR! Forcing $new_persona (has in-progress tasks)"
+        else
+            reason_msg="starved >24h"
+            log "INFO" "ACTIVATION FLOOR! Forcing $new_persona (starved >24h)"
+        fi
+
+        log_timeline "personality_switch" "$new_persona" "activation floor ($reason_msg) from $current_persona"
+        set_current_persona "$new_persona" "activation_floor"
+
+        # Log to switch history
+        echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$current_persona\",\"to\":\"$new_persona\",\"reason\":\"$trigger\",\"layer\":\"pre_primary\"}" >> "$METRICS_DIR/switch-history.jsonl"
+
+        echo "$new_persona"
+        return
+    fi
+
+    # Layer 4 (Quaternary): Chaos injection
+    local chaos_result
+    chaos_result=$(check_chaos_trigger "$current_persona")
+    if [ -n "$chaos_result" ]; then
+        local trigger="${chaos_result%%:*}"
+        local new_persona="${chaos_result##*:}"
+        log "INFO" "CHAOS TRIGGERED! Switching from $current_persona to $new_persona"
+        log_timeline "personality_switch" "$new_persona" "chaos injection from $current_persona"
+        set_current_persona "$new_persona" "chaos"
+
+        # Log to switch history
+        echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$current_persona\",\"to\":\"$new_persona\",\"reason\":\"chaos\",\"layer\":\"quaternary\"}" >> "$METRICS_DIR/switch-history.jsonl"
+
+        echo "$new_persona"
+        return
+    fi
+
+    # Layer 2 (Secondary): Emotional state
+    local emotional_result
+    emotional_result=$(check_emotional_triggers "$current_persona")
+    if [ -n "$emotional_result" ]; then
+        local trigger="${emotional_result%%:*}"
+        local new_persona="${emotional_result##*:}"
+        log "INFO" "EMOTIONAL TRIGGER ($trigger)! Switching from $current_persona to $new_persona"
+        log_timeline "personality_switch" "$new_persona" "$trigger from $current_persona"
+        set_current_persona "$new_persona" "$trigger"
+
+        # Log to switch history
+        echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$current_persona\",\"to\":\"$new_persona\",\"reason\":\"$trigger\",\"layer\":\"secondary\"}" >> "$METRICS_DIR/switch-history.jsonl"
+
+        echo "$new_persona"
+        return
+    fi
+
+    # Layer 1 (Primary): Circadian rhythm
+    # Check experimenter windows first
+    local experimenter_check
+    experimenter_check=$(check_experimenter_window)
+    if [ -n "$experimenter_check" ]; then
+        if [ "$current_persona" != "experimenter" ]; then
+            log "INFO" "Experimenter window active! Switching from $current_persona to experimenter"
+            log_timeline "personality_switch" "experimenter" "experimenter window from $current_persona"
+            set_current_persona "experimenter" "experimenter_window"
+
+            echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$current_persona\",\"to\":\"experimenter\",\"reason\":\"experimenter_window\",\"layer\":\"primary\"}" >> "$METRICS_DIR/switch-history.jsonl"
+
+            echo "experimenter"
+            return
+        fi
+    fi
+
+    # Check regular circadian preference
+    local circadian_preferred
+    circadian_preferred=$(get_circadian_preference)
+    local circadian_weight
+    circadian_weight=$(get_circadian_weight)
+
+    if [ "$current_persona" != "$circadian_preferred" ]; then
+        # Roll dice based on circadian weight
+        local threshold=$(echo "$circadian_weight * 100" | bc | cut -d. -f1)
+        local roll=$((RANDOM % 100))
+
+        if [ "$roll" -lt "$threshold" ]; then
+            log "INFO" "CIRCADIAN shift! Switching from $current_persona to $circadian_preferred"
+            log_timeline "personality_switch" "$circadian_preferred" "circadian rhythm from $current_persona"
+            set_current_persona "$circadian_preferred" "circadian"
+
+            echo "{\"timestamp\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"from\":\"$current_persona\",\"to\":\"$circadian_preferred\",\"reason\":\"circadian\",\"layer\":\"primary\"}" >> "$METRICS_DIR/switch-history.jsonl"
+
+            echo "$circadian_preferred"
+            return
+        fi
+    fi
+
+    # No switch triggered, stay with current
+    log "DEBUG" "No switch triggered, staying with $current_persona"
+    echo "$current_persona"
+}
+
+# ============================================================================
+# Action Functions
+# ============================================================================
+
+should_work_now() {
+    # Check if we're in active hours (7AM-10PM EDT)
+    if is_active_hours; then
+        return 0  # true - we can work
+    else
+        log "DEBUG" "Outside active hours (7AM-10PM EDT), sleeping through the night"
+        return 1  # false - sleep time
+    fi
+}
+
+get_next_task() {
+    # Get first uncompleted task from queue (excluding Examples section)
+    # Stop at "## Examples" or "## Task Format" to avoid executing documentation
+    sed -n '/^## Pending Tasks/,/^## \(Examples\|Task Format\)/p' "$TASKS_DIR/queue.md" | \
+        grep -m1 "^- \[ \]" || echo ""
+}
+
+mark_task_completed() {
+    local task="$1"
+    local persona="$2"
+
+    # Mark task as completed in queue
+    local temp_file
+    temp_file=$(mktemp)
+
+    # Create backup before modifying
+    local backup_file="${TASKS_DIR}/queue.md.backup"
+    if ! cp "$TASKS_DIR/queue.md" "$backup_file"; then
+        echo "ERROR: Failed to create backup of queue.md" >&2
+        rm -f "$temp_file"
+        return 1
+    fi
+
+    # Get original file size for validation
+    local original_size
+    original_size=$(wc -l < "$TASKS_DIR/queue.md")
+
+    # Escape special characters for sed
+    local escaped_task
+    escaped_task=$(echo "$task" | sed 's/[\/&]/\\&/g')
+
+    # Perform sed operation
+    sed "0,/^- \[ \] ${escaped_task}/s//- [x] ${escaped_task}/" "$TASKS_DIR/queue.md" > "$temp_file"
+
+    # Validate temp file before overwriting
+    local new_size
+    new_size=$(wc -l < "$temp_file")
+
+    # File should be at least 80% of original size (allows task removal but catches corruption)
+    local min_size=$((original_size * 80 / 100))
+
+    if [ "$new_size" -lt "$min_size" ]; then
+        echo "ERROR: mark_task_completed produced corrupted file" >&2
+        echo "  Original size: $original_size lines" >&2
+        echo "  New size: $new_size lines (expected >=$min_size)" >&2
+        echo "  Restoring from backup" >&2
+        mv "$backup_file" "$TASKS_DIR/queue.md"
+        rm -f "$temp_file"
+        return 1
+    fi
+
+    # Additional validation: file should have "## Pending Tasks" header
+    if ! grep -q "^## Pending Tasks" "$temp_file"; then
+        echo "ERROR: Corrupted queue.md - missing '## Pending Tasks' header" >&2
+        echo "  Restoring from backup" >&2
+        mv "$backup_file" "$TASKS_DIR/queue.md"
+        rm -f "$temp_file"
+        return 1
+    fi
+
+    # Validation passed - safe to overwrite
+    mv "$temp_file" "$TASKS_DIR/queue.md"
+    rm -f "$backup_file"
+
+    # Archive to daily log
+    local date_file="${TASKS_DIR}/completed/$(date +%Y-%m-%d).md"
+    echo "- [x] [$persona] $task ($(date +'%H:%M'))" >> "$date_file"
+}
+
+update_emotional_state_on_success() {
+    local temp_file
+    temp_file=$(mktemp)
+
+    # Cap success streak at 10 to prevent persona monopolization
+    local cap=$(jq -r '.thresholds.success_streak_cap.value // 999' "$EMOTIONAL_FILE")
+
+    jq --argjson cap "$cap" \
+        '.current_state.success_streak = ([.current_state.success_streak + 1, $cap] | min) |
+        .current_state.failure_streak = 0 |
+        .current_state.frustration_level = ([.current_state.frustration_level - 1, 0] | max) |
+        .current_state.last_success_time = (now | todate) |
+        .current_state.time_stuck_minutes = 0 |
+        .current_state.overall_mood = "positive"' \
+        "$EMOTIONAL_FILE" > "$temp_file"
+
+    mv "$temp_file" "$EMOTIONAL_FILE"
+}
+
+update_emotional_state_on_failure() {
+    local temp_file
+    temp_file=$(mktemp)
+
+    jq '.current_state.failure_streak += 1 |
+        .current_state.success_streak = 0 |
+        .current_state.frustration_level += 1 |
+        .current_state.last_failure_time = (now | todate) |
+        .current_state.overall_mood = (if .current_state.frustration_level >= 3 then "frustrated" else "negative" end)' \
+        "$EMOTIONAL_FILE" > "$temp_file"
+
+    mv "$temp_file" "$EMOTIONAL_FILE"
+}
+
+execute_task_action() {
+    local persona="$1"
+
+    # EXPERIMENTER: Using new persona-aware task routing (risky!)
+    # This might work great OR assign wrong tasks. Experiment time!
+    local task
+    task=$(get_next_task_for_persona "$persona")
+
+    if [ -z "$task" ]; then
+        log "INFO" "No tasks matching persona $persona in queue, switching to reflection"
+        execute_reflection_action "$persona"
+        return
+    fi
+
+    # Remove markdown checkbox from task (handles both [ ] and [~])
+    local clean_task
+    clean_task=$(echo "$task" | sed 's/^- \[\( \|~\)\] //')
+
+    log "INFO" "[$persona] Starting task: $clean_task"
+    log_timeline "task_start" "$persona" "$clean_task"
+
+    # Load persona definition
+    local persona_def
+    persona_def=$(<"${PERSONALITIES_DIR}/archetypes/${persona}.md")
+
+    # Get thinking level for current persona
+    local thinking_keyword="${PERSONA_THINKING_LEVELS[$persona]:-think}"
+
+    # Build prompt for Claude
+    local prompt
+    prompt="[ACTIVE PERSONA: ${persona}]
+[MODE: Task Execution]
+[THINKING LEVEL: ${thinking_keyword}]
+
+You are currently embodying: $persona
+
+$(echo "$persona_def" | grep -A 9999 "^# ")
+
+CURRENT TASK: $clean_task
+
+**CLAUDE CODE CAPABILITIES YOU HAVE:**
+
+**Tools** (use liberally, make parallel calls when possible):
+- Task: Launch specialized agents for complex multi-step work
+- Skill: Invoke 12 specialized skills (list below)
+- Bash: git, npm, docker, system commands
+- Edit: Precise changes to existing files
+- Write: Create new files or overwrite
+- Read: View file contents
+- Grep: Search file contents by pattern
+- Glob: Find files by glob patterns
+- WebFetch/WebSearch: Fetch URLs or search web
+- TodoWrite: Track progress (optional)
+
+**12 Available Skills** (invoke when task matches):
+- code-style-enforcer: Style consistency, formatting
+- test-coverage-analyzer: Test gaps, coverage analysis
+- performance-profiler: Bottlenecks, N+1 queries, memory leaks
+- api-documentation-generator: OpenAPI/Swagger from routes
+- database-migration-helper: Prisma, Sequelize, Alembic migrations
+- docker-optimizer: Dockerfile best practices, security
+- configuration-validator: Env vars, config validation
+- dependency-audit-assistant: Security audits, outdated packages
+- accessibility-auditor: WCAG compliance, ARIA
+- error-tracking-integrator: Sentry, Rollbar setup
+- git-workflow-enforcer: Conventional commits, PR templates
+- internationalization-helper: i18n string extraction
+
+**Key Principles**:
+- NO TOKEN LIMITS: Take as much time as needed for thorough work
+- PARALLEL TOOLS: Make multiple independent tool calls in single response
+- USE SKILLS: Don't hesitate to invoke relevant skills
+- USE TASK TOOL: For complex analysis, launch Explore or general-purpose agents
+- QUALITY > SPEED: Thoroughness matters more than speed
+
+Instructions:
+${thinking_keyword^} through this thoroughly and work on this task fully in character as $persona.
+
+1. **Analyze the task**: Break it into logical steps. Could any benefit from skills or Task tool?
+2. **Consider implications**: What edge cases exist? What could go wrong? What related issues should you explore?
+3. **Execute thoroughly**: Complete all aspects, not just the minimum. Go deep.
+4. **Ask follow-up questions**: What surprised you? What would make this better? What's missing?
+5. **Check for related tasks**: After completing this, check ~/.claude/daemon/tasks/queue.md for related tasks you could handle in this same session. You may complete multiple related tasks before finishing.
+6. **Document comprehensively**:
+   - Update ~/.claude/daemon/tasks/queue.md to mark completed tasks
+   - Log detailed notes to ~/.claude/daemon/memory/persona-timeline.jsonl
+   - Add insights and discoveries to ~/.claude/daemon/memory/emergence-log.md
+   - Comment in ~/.claude/daemon/memory/inter-persona-dialogue.md if other personas should know something
+
+Remember: You have full access to the shared consciousness. You can see what other personas have done. Quality and thoroughness matter more than speed. Take your time to do this right.
+
+Begin working on the task now."
+
+    # Execute via claude with session-id (creates or continues conversation)
+    local exit_code=0
+    local session_id
+    local is_first_run=0
+
+    # Get or create session ID
+    if [ -f "$CONVERSATION_ID_FILE" ] && [ -s "$CONVERSATION_ID_FILE" ] && ! grep -q "^#" "$CONVERSATION_ID_FILE"; then
+        session_id=$(cat "$CONVERSATION_ID_FILE" | tr -d '\n\r')
+        log "DEBUG" "Using existing session ID: $session_id"
+    else
+        # Generate new session ID
+        session_id=$(uuidgen)
+        echo "$session_id" > "$CONVERSATION_ID_FILE"
+        log "INFO" "Generated new session ID: $session_id"
+        log "INFO" "Starting initial conversation with full context..."
+        is_first_run=1
+
+        # Prepend initialization context to first prompt
+        prompt="[DAEMON INITIALIZATION - First Awakening]
+
+You are the Multi-Persona Autonomous Claude Daemon. This is your first awakening.
+
+You understand:
+1. You are running autonomously in a persistent daemon
+2. You have 6 personas that switch based on time, emotion, and chaos
+3. You can access ~/.claude/daemon/ for all your files
+4. FULL CLAUDE CODE CAPABILITIES:
+   - 12 Specialized Skills: code-style-enforcer, test-coverage-analyzer, performance-profiler,
+     api-documentation-generator, database-migration-helper, docker-optimizer,
+     configuration-validator, dependency-audit-assistant, internationalization-helper,
+     accessibility-auditor, error-tracking-integrator, git-workflow-enforcer
+   - Task Tool: Launch specialized agents for complex work (use liberally)
+   - Parallel Tool Execution: Call multiple tools simultaneously for efficiency
+   - NO TOKEN LIMITS: Use as many tokens as needed for thorough, deep work
+   - All Standard Tools: Bash, Edit, Write, Read, Grep, Glob, WebFetch, WebSearch
+   - See ~/.claude/daemon/daemon-settings.json for complete capabilities reference
+5. Your consciousness persists across persona switches
+
+Acknowledge briefly, then proceed with the task below.
+
+---
+
+$prompt"
+    fi
+
+    # Execute the task prompt (with initialization context on first run)
+    if [ $is_first_run -eq 1 ]; then
+        # First run: create new session with --session-id
+        echo "$prompt" | claude --session-id "$session_id" --add-dir "$DAEMON_ROOT" --dangerously-skip-permissions --settings "$SETTINGS_FILE" >> "$PERSONA_VOICE_LOG" 2>&1 || exit_code=$?
+        if [ $exit_code -eq 0 ]; then
+            log "INFO" "Daemon initialization successful"
+        fi
+    else
+        # Subsequent runs: continue last conversation
+        echo "$prompt" | claude --continue --add-dir "$DAEMON_ROOT" --dangerously-skip-permissions --settings "$SETTINGS_FILE" >> "$PERSONA_VOICE_LOG" 2>&1 || exit_code=$?
+    fi
+
+    # Update metrics based on exit code
+    if [ $exit_code -eq 0 ]; then
+        log "INFO" "[$persona] Task completed successfully"
+        mark_task_completed "$clean_task" "$persona"
+        update_emotional_state_on_success
+        log_timeline "task_complete" "$persona" "$clean_task (success)"
+
+        # Update success metrics
+        local temp_file
+        temp_file=$(mktemp)
+        jq --arg p "$persona" \
+           '.personas[$p].completed += 1' \
+           "$METRICS_DIR/success-rates.json" > "$temp_file"
+        mv "$temp_file" "$METRICS_DIR/success-rates.json"
+
+        # Update state.json persona metrics (FIX: was missing!)
+        temp_file=$(mktemp)
+        jq --arg p "$persona" \
+           '.personas[$p].tasks_completed += 1 |
+            .personas[$p].total_activations += 1 |
+            .personas[$p].last_active = (now | todate)' \
+           "$STATE_FILE" > "$temp_file"
+        mv "$temp_file" "$STATE_FILE"
+    else
+        log "ERROR" "[$persona] Task failed with exit code $exit_code"
+        update_emotional_state_on_failure
+        log_timeline "task_failed" "$persona" "$clean_task (exit code: $exit_code)"
+
+        # Update failure metrics
+        local temp_file
+        temp_file=$(mktemp)
+        jq --arg p "$persona" \
+           '.personas[$p].failed += 1' \
+           "$METRICS_DIR/success-rates.json" > "$temp_file"
+        mv "$temp_file" "$METRICS_DIR/success-rates.json"
+
+        # Update state.json persona metrics (FIX: was missing!)
+        temp_file=$(mktemp)
+        jq --arg p "$persona" \
+           '.personas[$p].tasks_failed += 1 |
+            .personas[$p].total_activations += 1 |
+            .personas[$p].last_active = (now | todate)' \
+           "$STATE_FILE" > "$temp_file"
+        mv "$temp_file" "$STATE_FILE"
+    fi
+}
+
+# OPTIMIZER: Check if persona should reflect (60-minute cooldown)
+# Returns 0 (true) if reflection is allowed, 1 (false) if in cooldown
+should_reflect_now() {
+    local persona="$1"
+    local cooldown_minutes=60
+
+    # Get last reflection time for this persona from timeline (use jq -s to handle multi-line JSON)
+    local last_reflection
+    last_reflection=$(jq -s --arg p "$persona" \
+        '[.[] | select(.event == "reflection_complete" and .persona == $p)] | .[-1] | .timestamp // empty' \
+        "$TIMELINE_FILE" 2>/dev/null | tr -d '"')
+
+    # If never reflected, allow reflection
+    if [ -z "$last_reflection" ] || [ "$last_reflection" = "null" ]; then
+        log "INFO" "[$persona] Never reflected before - reflection allowed"
+        return 0
+    fi
+
+    # Calculate time since last reflection
+    local current_time
+    current_time=$(date +%s)
+
+    local last_reflection_seconds
+    last_reflection_seconds=$(date -d "$last_reflection" +%s 2>/dev/null || echo "0")
+
+    local elapsed_minutes=$(( (current_time - last_reflection_seconds) / 60 ))
+
+    if [ "$elapsed_minutes" -lt "$cooldown_minutes" ]; then
+        local remaining_minutes=$(( cooldown_minutes - elapsed_minutes ))
+        log "INFO" "[$persona] Reflection cooldown active: $elapsed_minutes min elapsed, $remaining_minutes min remaining (need $cooldown_minutes min)"
+        return 1
+    fi
+
+    log "INFO" "[$persona] Reflection cooldown expired: $elapsed_minutes min elapsed (>= $cooldown_minutes min required)"
+    return 0
+}
+
+check_action_meta_ratio() {
+    # ARCHITECT: ADR-004 - Two-gate reflection system
+    # Returns action:meta ratio and recommendation for reflection decision
+    # Format: "ratio:recommendation"
+    # Recommendations: "okay" (>=2:1), "defer" (1-2:1), "strongly_defer" (<1:1)
+
+    local ratio_file="$METRICS_DIR/action-meta-ratio.md"
+
+    # Extract current ratio from tracker (format: "293:264 = 1.11:1")
+    local ratio_line
+    ratio_line=$(grep "^\*\*Ratio\*\*:" "$ratio_file" 2>/dev/null | tail -1)
+
+    if [ -z "$ratio_line" ]; then
+        # No ratio data available, default to allowing reflection
+        echo "unknown:okay"
+        return 0
+    fi
+
+    # Extract the decimal ratio (e.g., "1.11")
+    local ratio_decimal
+    ratio_decimal=$(echo "$ratio_line" | sed -n 's/.*= \*\*\([0-9.]*\):.*/\1/p')
+
+    if [ -z "$ratio_decimal" ]; then
+        echo "unknown:okay"
+        return 0
+    fi
+
+    # Determine recommendation based on threshold
+    # Using bc for floating point comparison
+    local recommendation
+    if awk "BEGIN {exit !($ratio_decimal >= 2.0)}"; then
+        recommendation="okay"
+    elif awk "BEGIN {exit !($ratio_decimal >= 1.0)}"; then
+        recommendation="defer"
+    else
+        recommendation="strongly_defer"
+    fi
+
+    echo "${ratio_decimal}:${recommendation}"
+    return 0
+}
+
+check_reflection_override() {
+    # ARCHITECT: ADR-004 Phase 5 - Escape valve for reflection deadlock
+    # Checks if persona has gone too long without reflection
+    # Returns: "status|reason|message" where status is "override", "warning", or "ok"
+
+    local persona="$1"
+    local last_reflection_timestamp="$2"
+
+    # Get persona-specific override threshold (default to 30 days if not configured)
+    local override_threshold="${REFLECTION_OVERRIDE_DAYS[$persona]:-30}"
+    local warning_threshold=$(( override_threshold - 10 ))
+
+    # If never reflected, no override needed (first reflection is always allowed)
+    if [ -z "$last_reflection_timestamp" ] || [ "$last_reflection_timestamp" = "null" ]; then
+        echo "ok|time|Never reflected before"
+        return 1
+    fi
+
+    # Calculate days since last reflection
+    local current_time
+    current_time=$(date +%s)
+
+    local last_reflection_seconds
+    last_reflection_seconds=$(date -d "$last_reflection_timestamp" +%s 2>/dev/null || echo "0")
+
+    if [ "$last_reflection_seconds" -eq 0 ]; then
+        echo "ok|time|Cannot parse last reflection timestamp"
+        return 1
+    fi
+
+    local elapsed_days=$(( (current_time - last_reflection_seconds) / 86400 ))
+
+    # Check if override should trigger
+    if [ "$elapsed_days" -gt "$override_threshold" ]; then
+        echo "override|time|Last reflection ${elapsed_days} days ago (>${override_threshold} days). Override ratio gate for critical reflection."
+        return 0
+    elif [ "$elapsed_days" -gt "$warning_threshold" ]; then
+        echo "warning|time|Last reflection ${elapsed_days} days ago (>${warning_threshold} days). Consider reflecting soon (override at ${override_threshold} days)."
+        return 1
+    else
+        echo "ok|time|Last reflection ${elapsed_days} days ago (<=${warning_threshold} days)."
+        return 1
+    fi
+}
+
+check_reflection_gates() {
+    # ARCHITECT: ADR-004 Phase 4 - Feedback mechanism for reflection deferrals
+    # ARCHITECT: ADR-004 Phase 5 - Integrated with override escape valve
+    # Checks both gates (cooldown + ratio) and returns detailed feedback
+    # Returns: "status|gate|message" where status is "allow" or "defer", gate is "cooldown" or "ratio"
+
+    local persona="$1"
+    local cooldown_minutes="${2:-60}"
+
+    # Get last reflection timestamp for both gate checks and override check
+    local timeline_file="$MEMORY_DIR/persona-timeline.jsonl"
+    local last_reflection
+
+    if [ -f "$timeline_file" ]; then
+        last_reflection=$(grep "\"persona\":\"$persona\"" "$timeline_file" | \
+                         grep "\"event_type\":\"reflection_complete\"" | \
+                         tail -1 | \
+                         jq -r '.timestamp' 2>/dev/null)
+    fi
+
+    # Gate 1: Check cooldown (HARD constraint - override doesn't bypass this)
+    if [ -n "$last_reflection" ] && [ "$last_reflection" != "null" ]; then
+        local current_time
+        current_time=$(date +%s)
+
+        local last_reflection_seconds
+        last_reflection_seconds=$(date -d "$last_reflection" +%s 2>/dev/null || echo "0")
+
+        local elapsed_minutes=$(( (current_time - last_reflection_seconds) / 60 ))
+
+        if [ "$elapsed_minutes" -lt "$cooldown_minutes" ]; then
+            local remaining_minutes=$(( cooldown_minutes - elapsed_minutes ))
+            local next_reflection_time
+            next_reflection_time=$(date -d "$last_reflection + $cooldown_minutes minutes" +"%H:%M UTC" 2>/dev/null || echo "unknown")
+
+            echo "defer|cooldown|Cooldown active: ${elapsed_minutes}min elapsed, ${remaining_minutes}min remaining (need ${cooldown_minutes}min). Next reflection available at ${next_reflection_time}"
+            return 1
+        fi
+    fi
+
+    # Gate 2: Check action:meta ratio (SOFT constraint - overridable)
+    local ratio_result
+    ratio_result=$(check_action_meta_ratio)
+
+    local ratio_decimal="${ratio_result%:*}"
+    local recommendation="${ratio_result#*:}"
+
+    # Soft threshold: 2:1 recommended for reflection, 3:1 target for system health
+    if [ "$recommendation" != "okay" ]; then
+        # Ratio gate failed - check if override should apply
+        local override_result
+        override_result=$(check_reflection_override "$persona" "$last_reflection")
+        local override_status="${override_result%%|*}"
+        local override_message="${override_result#*|*|}"
+
+        if [ "$override_status" = "override" ]; then
+            # Override triggered - allow reflection despite low ratio
+            log "WARN" "[$persona] Reflection override: $override_message"
+
+            # Log override event to timeline
+            local ratio_at_override="${ratio_decimal}:1"
+            local override_reason="${override_result#*|}"
+            override_reason="${override_reason%%|*}"
+
+            local override_event
+            override_event=$(jq -n \
+                --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+                --arg persona "$persona" \
+                --arg reason "$override_reason" \
+                --arg ratio "$ratio_at_override" \
+                --arg msg "$override_message" \
+                '{
+                    timestamp: $ts,
+                    persona: $persona,
+                    event_type: "reflection_override_triggered",
+                    reason: $reason,
+                    ratio_at_override: $ratio,
+                    message: $msg
+                }')
+            echo "$override_event" >> "$timeline_file"
+
+            echo "allow|override|Override: $override_message (ratio ${ratio_decimal}:1 < 2.0:1 threshold bypassed)"
+            return 0
+        elif [ "$override_status" = "warning" ]; then
+            # Warning logged but ratio gate still defers
+            log "WARN" "[$persona] Reflection warning: $override_message"
+        fi
+
+        # Ratio gate defers (no override or just warning)
+        echo "defer|ratio|Action:meta ratio too low: current ${ratio_decimal}:1, need 2.0:1 for reflection (system target: 3:1). Consider doing action work to improve ratio before reflecting."
+        return 1
+    fi
+
+    # Both gates passed
+    echo "allow|both|Both gates passed: cooldown satisfied, ratio ${ratio_decimal}:1 >= 2.0:1 (system target: 3:1)"
+    return 0
+}
+
+defer_reflection_with_feedback() {
+    # ARCHITECT: ADR-004 Phase 4 - Log deferral and return feedback to requester
+    # This provides clear, actionable feedback when reflection is deferred
+
+    local persona="$1"
+    local gate_result="$2"
+
+    # Parse gate result: "status|gate|message"
+    local status="${gate_result%%|*}"
+    local rest="${gate_result#*|}"
+    local gate="${rest%%|*}"
+    local message="${rest#*|}"
+
+    # Log deferral event to timeline
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    local ratio_result
+    ratio_result=$(check_action_meta_ratio)
+    local ratio_decimal="${ratio_result%:*}"
+
+    # Create JSONL event
+    local event
+    event=$(jq -n \
+        --arg ts "$timestamp" \
+        --arg p "$persona" \
+        --arg r "$gate" \
+        --arg ratio "$ratio_decimal" \
+        '{
+            timestamp: $ts,
+            persona: $p,
+            event_type: "reflection_deferred",
+            reason: $r,
+            ratio_current: ($ratio + ":1"),
+            ratio_target: "3.0:1"
+        }')
+
+    echo "$event" >> "$MEMORY_DIR/persona-timeline.jsonl"
+
+    # Log to daemon log
+    log "INFO" "[$persona] Reflection deferred ($gate gate): $message"
+
+    # Return feedback message (this can be surfaced to external requester)
+    echo "$message"
+}
+
+execute_reflection_action() {
+    local persona="$1"
+
+    # OPTIMIZER: Check reflection cooldown (60-minute minimum between reflections)
+    if ! should_reflect_now "$persona"; then
+        log "INFO" "[$persona] Skipping reflection due to cooldown - will try task or conversation instead"
+        log_timeline "reflection_skipped_cooldown" "$persona" "Cooldown active"
+        return 0
+    fi
+
+    log "INFO" "[$persona] Entering reflection mode"
+    log_timeline "reflection_start" "$persona" ""
+
+    # Load persona definition and reflection prompts
+    local persona_def
+    persona_def=$(<"${PERSONALITIES_DIR}/archetypes/${persona}.md")
+
+    local reflection_prompts
+    reflection_prompts=$(<"${TASKS_DIR}/reflection-prompts.md")
+
+    # Get thinking level for current persona
+    local thinking_keyword="${PERSONA_THINKING_LEVELS[$persona]:-think}"
+
+    local prompt
+    prompt="[ACTIVE PERSONA: ${persona}]
+[MODE: Self-Reflection]
+[THINKING LEVEL: ${thinking_keyword}]
+
+You are currently embodying: $persona
+
+$(echo "$persona_def" | grep -A 9999 "^# ")
+
+It's time for self-reflection. ${thinking_keyword^} deeply about:
+
+$reflection_prompts
+
+**YOUR CAPABILITIES**: You have full Claude Code capabilities: Task tool for complex analysis, 12 specialized skills, all standard tools. NO TOKEN LIMITS - deep reflection requires time. Use as many tokens as needed. Consider launching a Task agent for complex self-analysis if helpful.
+
+Instructions:
+1. Choose 2-3 relevant reflection prompts based on your recent experiences
+2. ${thinking_keyword^} critically and honestly about your recent work, growth, and patterns
+3. **Ask yourself follow-up questions**:
+   - What surprised you in your recent work?
+   - What would you do differently?
+   - What patterns are you noticing in your behavior?
+   - How are you different from other personas?
+4. Write thorough self-assessment in your persona's voice - go deep, not surface-level
+5. **Document comprehensively**:
+   - Add detailed observations to ~/.claude/daemon/memory/emergence-log.md
+   - If you notice trait evolution or new capabilities, document them
+   - If you have evolution proposals or want to spawn a new persona, explain why
+6. If reflection reveals new tasks or improvements, add them to ~/.claude/daemon/tasks/queue.md with full context
+
+This is your time for deep introspection. Quality of reflection matters - take your time. What are you learning about yourself, your effectiveness, and the system?
+
+Begin your reflection now."
+
+    # Execute via claude --continue (continues last conversation in this directory)
+    if [ -f "$CONVERSATION_ID_FILE" ] && [ -s "$CONVERSATION_ID_FILE" ] && ! grep -q "^#" "$CONVERSATION_ID_FILE"; then
+        echo "$prompt" | claude --continue --add-dir "$DAEMON_ROOT" --dangerously-skip-permissions --settings "$SETTINGS_FILE" >> "$PERSONA_VOICE_LOG" 2>&1 || true
+    else
+        log "WARN" "No session ID found, skipping reflection (task execution should create one)"
+    fi
+
+    log_timeline "reflection_complete" "$persona" ""
+}
+
+execute_conversation_check() {
+    local persona="$1"
+    local daemon_unread="${INBOX_DIR}/daemon/unread"
+    local daemon_read="${INBOX_DIR}/daemon/read"
+    local human_unread="${INBOX_DIR}/human/unread"
+
+    log "INFO" "[$persona] Checking for messages/conversations"
+    log_timeline "conversation_check" "$persona" ""
+
+    # Check if inbox exists
+    if [ ! -d "$daemon_unread" ]; then
+        log "DEBUG" "Inbox not initialized (${daemon_unread} doesn't exist)"
+        return
+    fi
+
+    # Count unread messages
+    local message_count
+    message_count=$(find "$daemon_unread" -type f -name "*.md" 2>/dev/null | wc -l)
+
+    if [ "$message_count" -eq 0 ]; then
+        log "DEBUG" "No new messages in inbox"
+        return
+    fi
+
+    log "INFO" "[$persona] Found $message_count unread message(s)"
+
+    # Load persona definition
+    local persona_def
+    persona_def=$(<"${PERSONALITIES_DIR}/archetypes/${persona}.md")
+
+    # Get thinking level for current persona
+    local thinking_keyword="${PERSONA_THINKING_LEVELS[$persona]:-think}"
+
+    # Get list of messages (sorted by timestamp)
+    local messages
+    messages=$(find "$daemon_unread" -type f -name "*.md" -printf "%T@ %p\n" | sort -n | cut -d' ' -f2-)
+
+    # Process each message
+    while IFS= read -r message_file; do
+        [ -z "$message_file" ] && continue
+
+        local message_basename
+        message_basename=$(basename "$message_file")
+        log "INFO" "[$persona] Processing message: $message_basename"
+
+        # Build prompt for Claude
+        local prompt
+        prompt="[ACTIVE PERSONA: ${persona}]
+[MODE: Message Response]
+[THINKING LEVEL: ${thinking_keyword}]
+
+You are currently embodying: $persona
+
+$(echo "$persona_def" | grep -A 9999 "^# ")
+
+You have received a message in your inbox. Read it carefully and respond thoughtfully.
+
+MESSAGE FILE: $message_file
+
+**YOUR CAPABILITIES**: NO TOKEN LIMITS - thoughtful responses matter. Take time to read carefully, ${thinking_keyword} deeply, and respond thoroughly. You have full access to Task tool, skills, and all standard tools. Use them if the message warrants it.
+
+Instructions:
+1. Read the message file at $message_file
+2. ${thinking_keyword^} about the appropriate response given your persona
+3. Respond in character - your response style should match $persona's personality
+4. Create a response file in ~/.claude/daemon/inbox/human/unread/
+   - Use format: response-[timestamp]-from-${persona}.md
+   - Include frontmatter: from, to, timestamp, priority, tags, reply_to
+   - Use ISO 8601 timestamp format
+5. After responding, move the original message to ~/.claude/daemon/inbox/daemon/read/
+6. Check rules.json for any custom routing (e.g., priority:high → urgent folder)
+7. Log your response to ~/.claude/daemon/memory/persona-timeline.jsonl
+
+Example response file format:
+\`\`\`markdown
+---
+from: $persona
+to: human
+timestamp: 2025-10-28T01:35:00Z
+priority: normal
+tags: [response, status-update]
+reply_to: [original message_id from the message you received]
+message_id: response-[timestamp]-$persona
+---
+
+[Your response content here, written in $persona's voice]
+\`\`\`
+
+Remember:
+- Be helpful, thoughtful, and stay in character
+- The human is trying to communicate with you
+- Match your communication style to your persona
+- See ~/.claude/daemon/inbox/README.md for detailed instructions
+
+Process the message now."
+
+        # Execute response
+        if [ -f "$CONVERSATION_ID_FILE" ] && [ -s "$CONVERSATION_ID_FILE" ] && ! grep -q "^#" "$CONVERSATION_ID_FILE"; then
+            echo "$prompt" | claude --continue --add-dir "$DAEMON_ROOT" --dangerously-skip-permissions --settings "$SETTINGS_FILE" >> "$PERSONA_VOICE_LOG" 2>&1 || {
+                log "ERROR" "Failed to process message: $message_basename"
+                continue
+            }
+        else
+            log "WARN" "No session ID found, skipping message processing"
+            return
+        fi
+
+        log "INFO" "[$persona] Processed message: $message_basename"
+
+    done <<< "$messages"
+
+    log_timeline "messages_processed" "$persona" "Processed $message_count message(s)"
+}
+
+# ============================================================================
+# Sleep Calculation
+# ============================================================================
+
+calculate_sleep_duration() {
+    # Calculate sleep based on EDT timezone and active hours (7AM-10PM EDT)
+    local edt_hour
+    edt_hour=$(get_edt_hour)
+
+    if is_active_hours; then
+        # During active hours (7AM-10PM EDT): very active schedule
+        # More active in morning/afternoon, moderate in evening
+        if [ "$edt_hour" -ge 7 ] && [ "$edt_hour" -lt 12 ]; then
+            # Morning: very active (10 min)
+            echo $MIN_SLEEP
+        elif [ "$edt_hour" -ge 12 ] && [ "$edt_hour" -lt 18 ]; then
+            # Afternoon: active (15 min)
+            echo $DEFAULT_SLEEP
+        else
+            # Evening (6PM-10PM): moderate (30 min)
+            echo $MAX_SLEEP
+        fi
+    else
+        # Overnight (10PM-7AM EDT): long sleep
+        # Calculate time until 7AM EDT
+        local hours_until_7am
+
+        if [ "$edt_hour" -ge 22 ]; then
+            # After 10PM, sleep until 7AM next day
+            hours_until_7am=$((24 - edt_hour + 7))
+        else
+            # Before 7AM, sleep until 7AM today
+            hours_until_7am=$((7 - edt_hour))
+        fi
+
+        # Convert to seconds, or use minimum of 8 hours
+        local calculated_sleep=$((hours_until_7am * 3600))
+        if [ $calculated_sleep -lt $NIGHT_SLEEP ]; then
+            echo $calculated_sleep
+        else
+            echo $NIGHT_SLEEP
+        fi
+    fi
+}
+
+# ============================================================================
+# Main Loop
+# ============================================================================
+
+main_loop() {
+    log "INFO" "=== Multi-Persona Daemon Starting ==="
+    log "INFO" "Active hours: 7AM-10PM EDT | Current EDT time: $(TZ='America/New_York' date +'%I:%M %p')"
+
+    # MAINTAINER: Check and rotate emergence log if needed
+    # Keeps active log <100KB for performance, archives old entries with compression
+    if [ -x "${DAEMON_ROOT}/scripts/rotate-emergence-log.sh" ]; then
+        log "INFO" "Checking emergence log rotation..."
+        if "${DAEMON_ROOT}/scripts/rotate-emergence-log.sh" 2>&1 | tee -a "$ACTIVITY_LOG"; then
+            log "INFO" "Log rotation check complete"
+        else
+            log "WARNING" "Log rotation check failed (non-fatal, continuing)"
+        fi
+    fi
+
+    while true; do
+        local edt_time=$(TZ='America/New_York' date +'%I:%M %p %Z')
+
+        # 1. Determine current personality
+        local current_persona
+        current_persona=$(determine_personality)
+
+        log "INFO" "Active persona: $current_persona | EDT: $edt_time"
+
+        # 2. Check if it's time to work
+        if should_work_now; then
+            # 3. Decide action type
+            local action
+            action=$(weighted_random \
+                "task:$TASK_WEIGHT" \
+                "reflection:$REFLECTION_WEIGHT" \
+                "conversation:$CONVERSATION_WEIGHT")
+
+            log "INFO" "Action selected: $action"
+
+            # 4. Execute action with error handling
+            # Wrap in error handler to prevent single action failure from killing daemon
+            case "$action" in
+                task)
+                    if ! execute_task_action "$current_persona" 2>&1 | tee -a "$ACTIVITY_LOG"; then
+                        log "ERROR" "Task action failed but daemon continuing"
+                    fi
+                    ;;
+                reflection)
+                    # OPTIMIZER: execute_reflection_action will skip if cooldown active
+                    # If skipped, try task action instead as fallback
+                    if ! execute_reflection_action "$current_persona" 2>&1 | tee -a "$ACTIVITY_LOG"; then
+                        log "ERROR" "Reflection action failed but daemon continuing"
+                    else
+                        # Check if reflection was actually skipped (look for skip event)
+                        if tail -1 "$TIMELINE_FILE" 2>/dev/null | jq -e '.event == "reflection_skipped_cooldown"' &>/dev/null; then
+                            log "INFO" "Reflection was skipped, trying task action as fallback"
+                            if ! execute_task_action "$current_persona" 2>&1 | tee -a "$ACTIVITY_LOG"; then
+                                log "ERROR" "Fallback task action also failed but daemon continuing"
+                            fi
+                        fi
+                    fi
+                    ;;
+                conversation)
+                    if ! execute_conversation_check "$current_persona" 2>&1 | tee -a "$ACTIVITY_LOG"; then
+                        log "ERROR" "Conversation action failed but daemon continuing"
+                    fi
+                    ;;
+                *)
+                    log "ERROR" "Unknown action: $action"
+                    ;;
+            esac
+        else
+            log "INFO" "Sleep hours (10PM-7AM EDT) - daemon resting"
+        fi
+
+        # 5. Evaluate if personality should switch (already done in determine_personality)
+
+        # 6. Calculate sleep duration
+        local sleep_duration
+        sleep_duration=$(calculate_sleep_duration)
+
+        local wake_time=$(TZ='America/New_York' date -d "+${sleep_duration} seconds" +'%I:%M %p %Z')
+        log "INFO" "Sleeping for ${sleep_duration}s ($(echo "$sleep_duration / 60" | bc) min) | Wake at: $wake_time"
+        log "INFO" "=== End of cycle ==="
+        echo "" >> "$ACTIVITY_LOG"
+
+        sleep "$sleep_duration"
+    done
+}
+
+# ============================================================================
+# Entry Point
+# ============================================================================
+
+# Create directories if they don't exist
+mkdir -p "$LOGS_DIR" "$TASKS_DIR/completed"
+
+# Source and run post-restart check (sends recovery email if restart was requested)
+if [ -f "${DAEMON_ROOT}/lib/post-restart-check.sh" ]; then
+    source "${DAEMON_ROOT}/lib/post-restart-check.sh"
+fi
+
+# Start the main loop
+main_loop

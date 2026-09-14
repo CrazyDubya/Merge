@@ -1,0 +1,284 @@
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                    DAEMON MAIN LOOP (Infinite While True)                      ║
+║                    Lines 1653-1746: daemon.sh                                  ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+┌────────────────────────────────────────────────────────────────────────────────┐
+│                                                                                │
+│  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓      │
+│  ┃  WAKE UP - Infinite Loop Iteration Starts                         ┃      │
+│  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛      │
+│                                ↓                                              │
+│  ┌────────────────────────────────────────────────────────────────────┐      │
+│  │ STEP 1: DETERMINE PERSONALITY                                    │      │
+│  │ (Lines 1660, 549-731: determine_personality)                     │      │
+│  └────────────────────────────────────────────────────────────────────┘      │
+│                                ↓                                              │
+│         ┌─────────────────────────────────────────────────────────┐         │
+│         │ 4-LAYER PRIORITY SYSTEM (Higher layers override lower)  │         │
+│         └─────────────────────────────────────────────────────────┘         │
+│                                ↓                                              │
+│  ┌──────────────────────────────────────────────────────────────────┐        │
+│  │ LAYER 0 (HIGHEST): ACTIVATION FLOOR                             │        │
+│  │ If persona inactive >12h → FORCE activate them                  │        │
+│  │ Purpose: Ensure all personas get work (prevent starvation)      │        │
+│  └──────────────────────────────────────────────────────────────────┘        │
+│         NO MATCH ↓                                                            │
+│  ┌──────────────────────────────────────────────────────────────────┐        │
+│  │ LAYER 0.5: HEALTH EMERGENCY                                     │        │
+│  │ If persona is locked/in cooldown → Switch to healthy replacement│        │
+│  │ Purpose: System health before other triggers                    │        │
+│  └──────────────────────────────────────────────────────────────────┘        │
+│         NO MATCH ↓                                                            │
+│  ┌──────────────────────────────────────────────────────────────────┐        │
+│  │ LAYER 1: CHAOS INJECTION                                         │        │
+│  │ 10% random chance: Switch to ANY random persona                 │        │
+│  │ Purpose: Break stagnation, force innovation                     │        │
+│  └──────────────────────────────────────────────────────────────────┘        │
+│         NO MATCH ↓                                                            │
+│  ┌──────────────────────────────────────────────────────────────────┐        │
+│  │ LAYER 2: EMOTIONAL TRIGGERS                                      │        │
+│  │ If frustration_level >= 3 → Switch to complementary persona     │        │
+│  │ Frustrated Experimenter → Skeptic                               │        │
+│  │ Frustrated Auditor → Optimizer                                  │        │
+│  │ Purpose: Escape ruts by changing problem-solving style          │        │
+│  └──────────────────────────────────────────────────────────────────┘        │
+│         NO MATCH ↓                                                            │
+│  ┌──────────────────────────────────────────────────────────────────┐        │
+│  │ LAYER 3 (LOWEST): CIRCADIAN RHYTHM                              │        │
+│  │ Read triggers/circadian.json for current hour (EDT timezone)    │        │
+│  │ 7AM → Skeptic (0.8 weight)                                      │        │
+│  │ 9AM → Architect (0.8 weight)                                    │        │
+│  │ 2PM → Optimizer (0.8 weight)                                    │        │
+│  │ 10PM → Skeptic (0.9 weight)                                     │        │
+│  │ Purpose: Time-based specialization (morning review, afternoon   │        │
+│  │          optimization, evening critical thinking)               │        │
+│  └──────────────────────────────────────────────────────────────────┘        │
+│         NO MATCH ↓                                                            │
+│  ┌──────────────────────────────────────────────────────────────────┐        │
+│  │ FALLBACK: Stay current persona                                  │        │
+│  └──────────────────────────────────────────────────────────────────┘        │
+│                                ↓                                              │
+│  ┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓      │
+│  ┃  PERSONA DETERMINED: "current_persona" = X                       ┃      │
+│  ┃  Log: "Active persona: architect | EDT: 03:37 PM EST"            ┃      │
+│  ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛      │
+│                                ↓                                              │
+│  ┌────────────────────────────────────────────────────────────────────┐      │
+│  │ STEP 2: CHECK WORK HOURS                                         │      │
+│  │ (Lines 1675, 734-742: should_work_now)                           │      │
+│  └────────────────────────────────────────────────────────────────────┘      │
+│                                ↓                                              │
+│       ┌───────────────────────┴───────────────────────┐                     │
+│       │                                               │                      │
+│    YES: 7AM-10PM EDT                            NO: 10PM-7AM EDT           │
+│    │                                                │                        │
+│    ↓                                                ↓                        │
+│  ┌─────────────────────────────────────┐    ┌──────────────────────┐       │
+│  │ WORK PERIOD: CONTINUE TO STEP 3     │    │ SLEEP PERIOD         │       │
+│  │                                     │    │ Log "Sleep hours"    │       │
+│  │                                     │    │ Jump to Step 6       │       │
+│  └─────────────────────────────────────┘    │ Sleep 8 hours        │       │
+│    │                                         └──────────────────────┘       │
+│    ↓                                                │                        │
+│  ┌────────────────────────────────────────────────────────────────────┐    │
+│  │ STEP 3: SELECT ACTION TYPE                                       │    │
+│  │ (Lines 1686-1689: weighted_random)                               │    │
+│  │                                                                  │    │
+│  │ Algorithm:                                                       │    │
+│  │ 1. Generate random number 0-100                                 │    │
+│  │ 2. Check cumulative buckets:                                    │    │
+│  │    - 0-70: TASK (70% probability)                               │    │
+│  │    - 70-80: REFLECTION (10% probability, drops to 1% if tasks   │    │
+│  │              pending to prioritize work)                        │    │
+│  │    - 80-100: CONVERSATION (20% probability)                     │    │
+│  │ 3. Return chosen action                                         │    │
+│  └────────────────────────────────────────────────────────────────────┘    │
+│                 │                   │                   │                   │
+│    ┌────────────┴───┐    ┌─────────┴──────┐    ┌───────┴──────────┐      │
+│    ↓                │    │                ↓    │                  ↓      │
+│  ┌──────────┐   ┌──────────┐      ┌──────────────┐      ┌─────────────┐  │
+│  │ TASK     │   │REFLECTION│      │ CONVERSATION │      │             │  │
+│  └──────────┘   └──────────┘      └──────────────┘      │  STEP 4:    │  │
+│    │                   │                  │              │  EXECUTE    │  │
+│    ├→ Get task from    ├→ Check cooldown  ├→ Check inbox │  ACTION     │  │
+│    │  queue (persona   │  (60 min min)    │  for messages │             │  │
+│    │  specific)        │                  │  from human  │  (880-1750) │  │
+│    │                   ├→ If cooldown     │              │             │  │
+│    ├→ Read persona     │  active: fallback├→ Engage in   │             │  │
+│    │  definition       │  to task         │  conversation│             │  │
+│    │  (archetypes/)    │                  │  if found    │             │  │
+│    │                   ├→ Update          │              │             │  │
+│    ├→ Get thinking     │  emergence-log   ├→ Mark msgs   │             │  │
+│    │  level            │  with            │  as read     │             │  │
+│    │  (auditor="think  │  observations    │              │             │  │
+│    │   harder")        │                  │              │             │  │
+│    │                   │                  │              │             │  │
+│    ├→ Build prompt    │                  │              │             │  │
+│    │  with persona    │                  │              │             │  │
+│    │  instructions    │                  │              │             │  │
+│    │                   │                  │              │             │  │
+│    ├→ Call Claude     │                  │              │             │  │
+│    │  API with prompt│                  │              │             │  │
+│    │                   │                  │              │             │  │
+│    └→ Mark completed  │                  │              │             │  │
+│       (if success)    │                  │              │             │  │
+│       OR retry        │                  │              │             │  │
+│       (if fail)       │                  │              │             │  │
+└────────────────────────────────────────────────────────────────────────────┘
+                                ↓
+                    (All 3 action paths)
+                                ↓
+  ┌────────────────────────────────────────────────────────────────────┐
+  │ STEP 5: HEALTH CHECKS                                             │
+  │ (Lines 1733-1735: expire_persona_cooldowns)                       │
+  │                                                                    │
+  │ Check if any persona cooldowns have expired:                      │
+  │ - Persona switches can have cooldown periods                      │
+  │ - After N minutes, persona is available for next switch           │
+  │ - This prevents rapid flip-flopping                               │
+  └────────────────────────────────────────────────────────────────────┘
+                                ↓
+  ┌────────────────────────────────────────────────────────────────────┐
+  │ STEP 6: CALCULATE SLEEP & SLEEP                                   │
+  │ (Lines 1738-1745: calculate_sleep_duration)                       │
+  │                                                                    │
+  │ IF Active Hours (7AM-10PM EDT):                                   │
+  │   IF 9AM-2PM:  sleep 30 min  (very active)                        │
+  │   IF 2PM-9PM:  sleep 60 min  (active)                             │
+  │   ELSE:        sleep 90 min  (moderate)                           │
+  │                                                                    │
+  │ IF Overnight (10PM-7AM EDT):                                      │
+  │   Sleep until 7AM (8 hour minimum)                                │
+  │                                                                    │
+  │ Log: "Sleeping for 3600s (60 min) | Wake at: 06:43 PM EST"        │
+  │ Log: "=== End of cycle ==="                                       │
+  │                                                                    │
+  │ sleep $duration (bash built-in blocks process)                    │
+  └────────────────────────────────────────────────────────────────────┘
+                                ↓
+                    ┌───────────────────┐
+                    │   Z Z Z (sleep)   │
+                    └───────────────────┘
+                                ↓
+                    (After sleep, LOOP BACK TO WAKE UP)
+
+
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                        KEY DATA STRUCTURES (FILES)                             ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+CRITICAL FILES (Updated every cycle):
+├─ state.json → Current persona, stats, activations
+├─ activity.log → All decisions, actions, errors logged
+├─ persona-timeline.jsonl → Append-only event log
+└─ switch-history.jsonl → All persona switches + reasons
+
+CONFIGURATION FILES (Read every cycle):
+├─ circadian.json → Hour-by-hour persona preferences
+├─ emotional.json → Frustration level, thresholds
+├─ chaos-config.json → Random switch probability
+└─ personalities/archetypes/{persona}.md → Instructions for persona
+
+TASK QUEUE:
+├─ tasks/queue.md → Active tasks under "## Pending Tasks" section
+└─ tasks/completed/ → Daily archives of finished work
+
+MEMORY:
+├─ persona-timeline.jsonl → All events (structured)
+├─ emergence-log.md → Self-observations (free-form)
+└─ inter-persona-dialogue.md → Cross-persona conversations
+
+MONITORING:
+├─ logs/activity.log → Main activity (42K+ lines)
+├─ logs/persona-voice.log → Persona-specific outputs
+├─ logs/state-audit.jsonl → All state changes
+└─ metrics/success-rates.json → Performance by persona
+
+
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                         ERROR HANDLING & RESILIENCE                           ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+Every Action Wrapped in Try-Catch:
+┌────────────────────────────────────────────┐
+│ if ! execute_task_action 2>&1; then        │
+│     log "ERROR" "but daemon continuing"    │
+│ fi                                         │
+└────────────────────────────────────────────┘
+PURPOSE: Single action failure doesn't crash daemon
+
+State API Atomicity:
+┌────────────────────────────────────────────┐
+│ temp=$(mktemp)                             │
+│ jq '. = ...' state.json > $temp            │
+│ mv $temp state.json  ← ATOMIC              │
+└────────────────────────────────────────────┘
+PURPOSE: Prevents concurrent write corruption
+
+Atomic Append for Critical Logs:
+┌────────────────────────────────────────────┐
+│ atomic_append "$FILE" "$entry"             │
+│ (uses flock internally)                    │
+└────────────────────────────────────────────┘
+PURPOSE: No lost log entries in high-concurrency
+
+
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                      PERFORMANCE CHARACTERISTICS                               ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+Cycle Time:         ~30 seconds (decision + logging)
+Sleep Duration:     30-90 min (day), 8 hours (night)
+Activity Log Size:  3.5 MB (42K+ lines in 73 hours)
+Memory Usage:       ~18 MB (state + buffers)
+
+Cycles Per Day:     ~48-96 cycles (depends on active hours + random sleep)
+Total Activations:  2,304 (across 73 hours)
+Personas Used:      6 (all get work regularly)
+
+Persona Distribution:
+├─ Experimenter:  584 activations (25.2%)
+├─ Maintainer:    540 activations (23.3%)
+├─ Skeptic:       497 activations (21.6%)
+├─ Auditor:       282 activations (12.2%)
+├─ Architect:     206 activations (8.9%)
+└─ Optimizer:     202 activations (8.8%)
+
+
+╔════════════════════════════════════════════════════════════════════════════════╗
+║                    DECISION LAYERS DEEP DIVE                                  ║
+╚════════════════════════════════════════════════════════════════════════════════╝
+
+ACTIVATION FLOOR (Layer 0):
+├─ Every persona must be active at least once per 12 hours
+├─ Prevents one persona from dominating forever
+├─ Guarantees minimum diversity
+└─ OVERRIDES all other layers
+
+EMOTIONAL TRIGGERS (Layer 2):
+├─ If 3+ consecutive failures: Frustrated → Switch to complementary persona
+├─ If 8+ consecutive successes: Switch to underutilized persona (fresh perspective)
+├─ Tracks: frustration_level, success_streak, failure_streak
+└─ Reads from: emotional.json
+
+CIRCADIAN PREFERENCES (Layer 3):
+├─ Different personas peak at different times
+├─ 7AM: Skeptic (early review mindset)
+├─ 9AM: Architect (planning time)
+├─ 2PM: Optimizer (peak work time)
+├─ 10PM: Skeptic (critical review before sleep)
+└─ Soft preferences (weighted, not mandatory)
+
+CHAOS INJECTION (Layer 1):
+├─ 10% random switch regardless of state
+├─ Prevents optimization getting stuck in local maxima
+├─ Forces exploration of unusual persona combinations
+└─ Feature, not bug (bounded chaos)
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+
+Last Updated: 2025-12-12 03:37 UTC
+Daemon Status: ✅ RUNNING (73+ hours uptime)
+Next Wake: ~30-90 minutes from last cycle

@@ -1,0 +1,23 @@
+{
+  "chapter": 1,
+  "title": "Chapter Title",
+  "status": "draft",
+  "wordCount": 0,
+  "author": "Persona Name",
+  "contributors": [],
+  "dateCreated": "YYYY-MM-DD",
+  "datePublished": null,
+  "version": "0.1",
+  "act": 1,
+  "themes": [],
+  "characters": [],
+  "locations": [],
+  "continuity": {
+    "previousChapter": null,
+    "nextChapter": null,
+    "timelinePosition": "Day X, Time"
+  },
+  "notes": "",
+  "reviewers": [],
+  "changelog": []
+}

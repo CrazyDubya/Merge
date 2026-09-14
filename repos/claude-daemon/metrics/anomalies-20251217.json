@@ -1,0 +1,45 @@
+2025-12-17T00:00:01Z|warn|Success rate declining: 24h=0% (7d avg=60%, -60%)
+2025-12-17T00:00:02Z|warn|High error rate: 1140 errors in last hour
+2025-12-17T01:00:02Z|warn|Success rate declining: 24h=0% (7d avg=60%, -60%)
+2025-12-17T01:00:02Z|warn|High error rate: 1140 errors in last hour
+2025-12-17T02:00:01Z|warn|Success rate declining: 24h=0% (7d avg=60%, -60%)
+2025-12-17T02:00:02Z|warn|High error rate: 1140 errors in last hour
+2025-12-17T03:00:02Z|warn|Success rate declining: 24h=0% (7d avg=60%, -60%)
+2025-12-17T03:00:02Z|warn|High error rate: 1140 errors in last hour
+2025-12-17T04:00:01Z|warn|Success rate declining: 24h=0% (7d avg=60%, -60%)
+2025-12-17T04:00:01Z|warn|High error rate: 1140 errors in last hour
+2025-12-17T05:00:01Z|warn|Success rate declining: 24h=0% (7d avg=60%, -60%)
+2025-12-17T05:00:01Z|warn|High error rate: 1140 errors in last hour
+2025-12-17T06:00:01Z|warn|Success rate declining: 24h=0% (7d avg=60%, -60%)
+2025-12-17T06:00:02Z|warn|High error rate: 1140 errors in last hour
+2025-12-17T07:00:01Z|warn|Success rate declining: 24h=0% (7d avg=60%, -60%)
+2025-12-17T07:00:01Z|warn|High error rate: 1140 errors in last hour
+2025-12-17T08:00:01Z|warn|Success rate declining: 24h=0% (7d avg=60%, -60%)
+2025-12-17T08:00:01Z|warn|High error rate: 1140 errors in last hour
+2025-12-17T09:00:01Z|warn|Success rate declining: 24h=0% (7d avg=60%, -60%)
+2025-12-17T09:00:01Z|warn|High error rate: 1140 errors in last hour
+2025-12-17T10:00:02Z|warn|Success rate declining: 24h=0% (7d avg=60%, -60%)
+2025-12-17T10:00:02Z|warn|High error rate: 1140 errors in last hour
+2025-12-17T11:00:01Z|warn|Success rate declining: 24h=0% (7d avg=60%, -60%)
+2025-12-17T11:00:02Z|warn|High error rate: 1140 errors in last hour
+2025-12-17T12:00:01Z|warn|Success rate declining: 24h=0% (7d avg=60%, -60%)
+2025-12-17T12:00:01Z|warn|High error rate: 1140 errors in last hour
+2025-12-17T13:00:01Z|warn|Success rate declining: 24h=0% (7d avg=60%, -60%)
+2025-12-17T13:00:01Z|warn|High error rate: 1140 errors in last hour
+2025-12-17T14:00:02Z|warn|Success rate declining: 24h=0% (7d avg=60%, -60%)
+2025-12-17T14:00:02Z|warn|High error rate: 1140 errors in last hour
+2025-12-17T15:00:01Z|warn|Success rate declining: 24h=0% (7d avg=60%, -60%)
+2025-12-17T15:00:02Z|warn|High error rate: 1140 errors in last hour
+2025-12-17T16:00:01Z|warn|High error rate: 1140 errors in last hour
+2025-12-17T17:00:01Z|warn|High error rate: 1148 errors in last hour
+2025-12-17T18:00:02Z|warn|Validation failures elevated: 83% of tasks failed output validation (last 6h)
+2025-12-17T18:00:02Z|warn|High error rate: 1148 errors in last hour
+2025-12-17T19:00:02Z|warn|Validation failures elevated: 86% of tasks failed output validation (last 6h)
+2025-12-17T19:00:02Z|warn|High error rate: 1148 errors in last hour
+2025-12-17T20:00:01Z|warn|Validation failures elevated: 86% of tasks failed output validation (last 6h)
+2025-12-17T20:00:01Z|warn|High error rate: 1148 errors in last hour
+2025-12-17T21:00:01Z|warn|Validation failures elevated: 86% of tasks failed output validation (last 6h)
+2025-12-17T21:00:01Z|warn|High error rate: 1148 errors in last hour
+2025-12-17T22:00:02Z|warn|Validation failures elevated: 80% of tasks failed output validation (last 6h)
+2025-12-17T22:00:02Z|warn|High error rate: 1148 errors in last hour
+2025-12-17T23:00:02Z|warn|High error rate: 1148 errors in last hour

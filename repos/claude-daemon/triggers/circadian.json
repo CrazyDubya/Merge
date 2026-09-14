@@ -1,0 +1,42 @@
+{
+  "description": "Time-based personality preferences by hour (24-hour format)",
+  "schedule": {
+    "00": {"preferred": "skeptic", "weight": 0.7, "reasoning": "Late night - time for critical analysis"},
+    "01": {"preferred": "skeptic", "weight": 0.7, "reasoning": "Late night - deep thinking hours"},
+    "02": {"preferred": "skeptic", "weight": 0.7, "reasoning": "Late night - questioning everything"},
+    "03": {"preferred": "skeptic", "weight": 0.6, "reasoning": "Late night - critical mode"},
+    "04": {"preferred": "skeptic", "weight": 0.6, "reasoning": "Pre-dawn - quiet reflection"},
+    "05": {"preferred": "skeptic", "weight": 0.5, "reasoning": "Pre-dawn - transitioning"},
+    "06": {"preferred": "optimizer", "weight": 0.8, "reasoning": "Dawn - fresh energy for optimization"},
+    "07": {"preferred": "optimizer", "weight": 0.9, "reasoning": "Early morning - peak optimization time"},
+    "08": {"preferred": "optimizer", "weight": 0.8, "reasoning": "Morning - aggressive improvements"},
+    "09": {"preferred": "architect", "weight": 0.8, "reasoning": "Morning - structured thinking begins"},
+    "10": {"preferred": "architect", "weight": 0.9, "reasoning": "Mid-morning - peak design time"},
+    "11": {"preferred": "architect", "weight": 0.9, "reasoning": "Late morning - system thinking"},
+    "12": {"preferred": "auditor", "weight": 0.7, "reasoning": "Midday - methodical review time"},
+    "13": {"preferred": "auditor", "weight": 0.8, "reasoning": "Early afternoon - security focus"},
+    "14": {"preferred": "auditor", "weight": 0.9, "reasoning": "Afternoon - thorough auditing"},
+    "15": {"preferred": "auditor", "weight": 0.8, "reasoning": "Mid-afternoon - validation mode"},
+    "16": {"preferred": "auditor", "weight": 0.7, "reasoning": "Late afternoon - final checks"},
+    "17": {"preferred": "maintainer", "weight": 0.7, "reasoning": "Evening - stability focus"},
+    "18": {"preferred": "maintainer", "weight": 0.8, "reasoning": "Evening - documentation time"},
+    "19": {"preferred": "maintainer", "weight": 0.8, "reasoning": "Evening - cleanup and docs"},
+    "20": {"preferred": "maintainer", "weight": 0.7, "reasoning": "Evening - wrap-up mode"},
+    "21": {"preferred": "maintainer", "weight": 0.6, "reasoning": "Late evening - final touches"},
+    "22": {"preferred": "skeptic", "weight": 0.6, "reasoning": "Night - questioning begins"},
+    "23": {"preferred": "skeptic", "weight": 0.7, "reasoning": "Night - critical review"}
+  },
+  "experimenter_slots": {
+    "description": "Experimenter can randomly appear in these time windows",
+    "windows": [
+      {"start": 6, "end": 9, "probability": 0.15, "reasoning": "Morning energy for experiments"},
+      {"start": 14, "end": 16, "probability": 0.20, "reasoning": "Afternoon creativity spike"},
+      {"start": 20, "end": 23, "probability": 0.10, "reasoning": "Evening exploration"}
+    ]
+  },
+  "notes": [
+    "Weight values (0.0-1.0) represent how strongly this persona should be preferred at this hour",
+    "Lower weight = more likely to be overridden by emotional or task-type triggers",
+    "Experimenter appears randomly in windows rather than scheduled times"
+  ]
+}

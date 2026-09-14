@@ -1,0 +1,137 @@
+{
+  "baseline": {
+    "name": "Baseline (0%)",
+    "description": "Original settings - no throttling",
+    "reduction": 0,
+    "settings": {
+      "min_sleep": 600,
+      "default_sleep": 900,
+      "max_sleep": 1800,
+      "night_sleep": 28800,
+      "active_start": 7,
+      "active_end": 22,
+      "task_weight": 0.5,
+      "reflection_weight": 0.3,
+      "conversation_weight": 0.2,
+      "reflection_cooldown": 60,
+      "chaos_enabled": true,
+      "chaos_probability": 0.1,
+      "thinking_levels": {
+        "experimenter": "think",
+        "optimizer": "think",
+        "maintainer": "think",
+        "architect": "think hard",
+        "skeptic": "think hard",
+        "auditor": "think harder"
+      }
+    }
+  },
+  "light": {
+    "name": "Light Throttle (15%)",
+    "description": "Sleep +25%, Reflection 90min, Chaos 5%",
+    "reduction": 15,
+    "settings": {
+      "min_sleep": 750,
+      "default_sleep": 1125,
+      "max_sleep": 2250,
+      "night_sleep": 28800,
+      "active_start": 7,
+      "active_end": 22,
+      "task_weight": 0.5,
+      "reflection_weight": 0.3,
+      "conversation_weight": 0.2,
+      "reflection_cooldown": 90,
+      "chaos_enabled": true,
+      "chaos_probability": 0.05,
+      "thinking_levels": {
+        "experimenter": "think",
+        "optimizer": "think",
+        "maintainer": "think",
+        "architect": "think hard",
+        "skeptic": "think hard",
+        "auditor": "think harder"
+      }
+    }
+  },
+  "medium": {
+    "name": "Medium Throttle (35%)",
+    "description": "Sleep +50%, 9AM-9PM, Reflection 120min, No chaos, Standard thinking",
+    "reduction": 35,
+    "settings": {
+      "min_sleep": 900,
+      "default_sleep": 1350,
+      "max_sleep": 2700,
+      "night_sleep": 28800,
+      "active_start": 9,
+      "active_end": 21,
+      "task_weight": 0.5,
+      "reflection_weight": 0.3,
+      "conversation_weight": 0.2,
+      "reflection_cooldown": 120,
+      "chaos_enabled": false,
+      "chaos_probability": 0.0,
+      "thinking_levels": {
+        "experimenter": "think",
+        "optimizer": "think",
+        "maintainer": "think",
+        "architect": "think",
+        "skeptic": "think",
+        "auditor": "think hard"
+      }
+    }
+  },
+  "heavy": {
+    "name": "Heavy Throttle (55%)",
+    "description": "Sleep 2x, 9AM-6PM, Task-focused, Reflection 180min, No chaos, Minimal thinking",
+    "reduction": 55,
+    "settings": {
+      "min_sleep": 1200,
+      "default_sleep": 1800,
+      "max_sleep": 3600,
+      "night_sleep": 28800,
+      "active_start": 9,
+      "active_end": 18,
+      "task_weight": 0.7,
+      "reflection_weight": 0.15,
+      "conversation_weight": 0.15,
+      "reflection_cooldown": 180,
+      "chaos_enabled": false,
+      "chaos_probability": 0.0,
+      "thinking_levels": {
+        "experimenter": "think",
+        "optimizer": "think",
+        "maintainer": "think",
+        "architect": "think",
+        "skeptic": "think",
+        "auditor": "think"
+      }
+    }
+  },
+  "SAT35": {
+    "name": "SAT35",
+    "description": "SAT: 9-9 hours, +25% sleep (35% reduction)",
+    "reduction": 35,
+    "settings": {
+      "min_sleep": 750,
+      "default_sleep": 1125,
+      "max_sleep": 2250,
+      "night_sleep": 28800,
+      "active_start": 9,
+      "active_end": 21,
+      "task_weight": 0.5,
+      "reflection_weight": 0.3,
+      "conversation_weight": 0.2,
+      "reflection_cooldown": 60,
+      "chaos_enabled": true,
+      "chaos_probability": 0.1,
+      "thinking_levels": {
+        "experimenter": "think",
+        "optimizer": "think",
+        "maintainer": "think",
+        "architect": "think hard",
+        "skeptic": "think hard",
+        "auditor": "think harder"
+      }
+    }
+  }
+}

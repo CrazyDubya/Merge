@@ -1,0 +1,22 @@
+--- daemon.sh.original	2025-10-28 00:00:00.000000000 +0000
++++ daemon.sh.fixed	2025-10-28 00:31:00.000000000 +0000
+@@ -556,9 +556,19 @@
+
+         # Update success metrics
+         local temp_file
+         temp_file=$(mktemp)
+         jq --arg p "$persona" \
+            '.personas[$p].completed += 1' \
+            "$METRICS_DIR/success-rates.json" > "$temp_file"
+         mv "$temp_file" "$METRICS_DIR/success-rates.json"
++
++        # Update state.json persona metrics (THE MISSING PIECE!)
++        temp_file=$(mktemp)
++        jq --arg p "$persona" \
++           '.personas[$p].tasks_completed += 1 |
++            .personas[$p].total_activations += 1 |
++            .personas[$p].last_active = (now | todate)' \
++           "$STATE_FILE" > "$temp_file"
++        mv "$temp_file" "$STATE_FILE"
+     else
+         log "ERROR" "[$persona] Task failed with exit code $exit_code"

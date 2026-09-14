@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daemon Inbox Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .nav-links {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .nav-links a {
+            display: inline-block;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #fff;
+            text-decoration: none;
+            margin: 0 10px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-links a:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        .folder-tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .folder-tab {
+            flex: 1;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid transparent;
+            border-radius: 10px;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .folder-tab:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .folder-tab.active {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        .message-list {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            margin-bottom: 20px;
+        }
+
+        .message-item {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-left: 4px solid transparent;
+        }
+
+        .message-item:hover {
+            background: rgba(0, 0, 0, 0.3);
+            transform: translateX(5px);
+        }
+
+        .message-item.priority-high {
+            border-left-color: #ef4444;
+        }
+
+        .message-item.priority-medium {
+            border-left-color: #f59e0b;
+        }
+
+        .message-item.priority-normal {
+            border-left-color: #3b82f6;
+        }
+
+        .message-item.priority-low {
+            border-left-color: #6b7280;
+        }
+
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+
+        .message-from {
+            font-weight: bold;
+            font-size: 1.1em;
+        }
+
+        .message-timestamp {
+            opacity: 0.7;
+            font-size: 0.9em;
+        }
+
+        .message-preview {
+            opacity: 0.9;
+            font-size: 0.95em;
+            margin-top: 5px;
+        }
+
+        .message-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 10px;
+        }
+
+        .tag {
+            display: inline-block;
+            padding: 3px 10px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            font-size: 0.8em;
+        }
+
+        .message-content {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .message-content.active {
+            display: block;
+        }
+
+        .message-content pre {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 8px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            line-height: 1.6;
+        }
+
+        .close-button {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: #fff;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .close-button:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            font-size: 1.2em;
+        }
+
+        .error {
+            background: rgba(239, 68, 68, 0.2);
+            border: 2px solid #ef4444;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-bottom: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 10px;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2em;
+            font-weight: bold;
+        }
+
+        .stat-label {
+            opacity: 0.8;
+            font-size: 0.9em;
+        }
+
+        /* Persona emoji mappings */
+        .persona-architect::before { content: '🏗️ '; }
+        .persona-optimizer::before { content: '⚡ '; }
+        .persona-auditor::before { content: '🔍 '; }
+        .persona-maintainer::before { content: '🔧 '; }
+        .persona-skeptic::before { content: '🤔 '; }
+        .persona-experimenter::before { content: '🧪 '; }
+
+        /* ===================================
+           MOBILE RESPONSIVE STYLES
+           Experimenter: Mobile-first responsive design
+           Breakpoints: 320px (mobile), 768px (tablet), 1024px+ (desktop)
+           =================================== */
+
+        /* Mobile: 320px - 767px */
+        @media (max-width: 767px) {
+            body {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 1.8em; /* Reduced from 2.5em */
+            }
+
+            .subtitle {
+                font-size: 1em; /* Reduced from 1.2em */
+            }
+
+            header {
+                margin-bottom: 20px;
+            }
+
+            /* Stack navigation links on mobile */
+            .nav-links {
+                margin: 15px 0;
+            }
+
+            .nav-links a {
+                display: block; /* Stack vertically */
+                margin: 8px auto;
+                padding: 12px 20px; /* Touch-friendly */
+                min-height: 44px; /* WCAG minimum */
+                max-width: 300px;
+            }
+
+            /* Stack folder tabs vertically on very small screens */
+            .folder-tabs {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .folder-tab {
+                padding: 12px; /* Touch-friendly */
+                min-height: 44px;
+            }
+
+            /* Adjust message list for mobile */
+            .message-list {
+                padding: 15px; /* Reduced from 25px */
+            }
+
+            .message-item {
+                padding: 12px; /* Touch-friendly */
+                margin-bottom: 12px;
+            }
+
+            .message-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+
+            .message-from {
+                font-size: 1em;
+            }
+
+            .message-timestamp {
+                font-size: 0.85em;
+            }
+
+            .message-preview {
+                font-size: 0.9em;
+            }
+
+            /* Message tags wrap better on mobile */
+            .message-tags {
+                gap: 4px;
+            }
+
+            .tag {
+                font-size: 0.75em;
+                padding: 2px 8px;
+            }
+
+            /* Message content modal adjustments */
+            .message-content {
+                padding: 15px;
+                margin: 10px;
+            }
+
+            .message-content pre {
+                font-size: 0.85em;
+                padding: 15px;
+            }
+
+            .close-button {
+                padding: 12px 20px; /* Touch-friendly */
+                min-height: 44px;
+                font-size: 1em;
+            }
+
+            /* Stats section adjustments */
+            .stats {
+                flex-direction: column;
+                gap: 10px;
+                padding: 10px;
+            }
+
+            .stat-item {
+                padding: 8px 0;
+            }
+
+            .stat-value {
+                font-size: 1.8em; /* Slightly smaller */
+            }
+
+            .stat-label {
+                font-size: 0.85em;
+            }
+        }
+
+        /* Tablet: 768px - 1023px */
+        @media (min-width: 768px) and (max-width: 1023px) {
+            h1 {
+                font-size: 2.2em;
+            }
+
+            .folder-tabs {
+                gap: 8px;
+            }
+
+            .message-list {
+                padding: 20px;
+            }
+        }
+
+        /* Desktop 1024px+ uses existing styles */
+    </style>
+</head>
+<body>
+    <!-- Authentication Check (same as dashboard) -->
+    <script>
+        function checkDashboardAuth() {
+            const storedHash = localStorage.getItem('daemon_auth_token');
+            const VALID_TOKENS = new Set([
+                '79a8427e7b4d26669df2b08c90aae85667ee979fe74efb1f1a975570747f3371',
+            ]);
+
+            if (!storedHash || !VALID_TOKENS.has(storedHash)) {
+                window.location.href = 'auth.html';
+                return false;
+            }
+
+            const authTime = localStorage.getItem('daemon_auth_time');
+            if (authTime) {
+                const elapsed = Date.now() - parseInt(authTime);
+                const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+                if (elapsed > TWENTY_FOUR_HOURS) {
+                    localStorage.removeItem('daemon_auth_token');
+                    localStorage.removeItem('daemon_auth_time');
+                    window.location.href = 'auth.html';
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        if (!checkDashboardAuth()) {
+            document.body.style.display = 'none';
+        }
+    </script>
+
+    <div class="container">
+        <header>
+            <h1>📬 Daemon Inbox</h1>
+            <p class="subtitle">Message Viewer (Read-Only)</p>
+        </header>
+
+        <div class="nav-links">
+            <a href="dashboard.html">← Back to Dashboard</a>
+        </div>
+
+        <div class="folder-tabs">
+            <div class="folder-tab active" data-folder="unread" onclick="switchFolder('unread')">
+                <div style="font-size: 1.5em; margin-bottom: 5px;">📨</div>
+                <div style="font-weight: bold;">Unread</div>
+                <div style="opacity: 0.8; font-size: 0.9em;" id="unread-count">-</div>
+            </div>
+            <div class="folder-tab" data-folder="read" onclick="switchFolder('read')">
+                <div style="font-size: 1.5em; margin-bottom: 5px;">✅</div>
+                <div style="font-weight: bold;">Read</div>
+                <div style="opacity: 0.8; font-size: 0.9em;" id="read-count">-</div>
+            </div>
+        </div>
+
+        <div id="inbox-content">
+            <div class="loading">⏳ Loading messages...</div>
+        </div>
+
+        <div id="message-viewer" class="message-content">
+            <button class="close-button" onclick="closeMessage()">✕ Close</button>
+            <div id="message-viewer-content"></div>
+        </div>
+    </div>
+
+    <script>
+        // OPTIMIZER NOTE: Performance-optimized inbox viewer
+        // - Lazy loading (only loads visible folder)
+        // - Caches API responses
+        // - Minimal DOM operations
+        // - No unnecessary re-renders
+
+        let currentFolder = 'unread';
+        let messageCache = {};
+        let contentCache = {};
+
+        // HTML escaping (security)
+        function escapeHtml(unsafe) {
+            if (unsafe == null) return '';
+            return String(unsafe)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Format timestamp
+        function formatTime(isoString) {
+            if (!isoString) return 'Unknown';
+            const date = new Date(isoString);
+            const now = new Date();
+            const diff = now - date;
+            const minutes = Math.floor(diff / 60000);
+            const hours = Math.floor(minutes / 60);
+            const days = Math.floor(hours / 24);
+
+            if (minutes < 1) return 'just now';
+            if (minutes < 60) return `${minutes}m ago`;
+            if (hours < 24) return `${hours}h ago`;
+            if (days < 7) return `${days}d ago`;
+            return date.toLocaleString();
+        }
+
+        // Fetch message list for a folder
+        async function fetchMessages(folder) {
+            // Check cache first (performance optimization)
+            if (messageCache[folder]) {
+                return messageCache[folder];
+            }
+
+            try {
+                // EXPERIMENTER: Add auth header for API security
+                const authToken = localStorage.getItem('daemon_auth_token');
+                const response = await fetch(`api-inbox.sh?folder=${folder}`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+
+                // Cache result
+                messageCache[folder] = data;
+                return data;
+            } catch (error) {
+                console.error('Failed to fetch messages:', error);
+                return { error: error.message, messages: [], total: 0 };
+            }
+        }
+
+        // Fetch full message content
+        async function fetchMessageContent(folder, filename) {
+            const cacheKey = `${folder}:${filename}`;
+
+            // Check cache first
+            if (contentCache[cacheKey]) {
+                return contentCache[cacheKey];
+            }
+
+            try {
+                // EXPERIMENTER: Add auth header for API security
+                const authToken = localStorage.getItem('daemon_auth_token');
+                const response = await fetch(`api-inbox-message.sh?folder=${folder}&file=${filename}`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const data = await response.json();
+
+                // Cache result
+                contentCache[cacheKey] = data;
+                return data;
+            } catch (error) {
+                console.error('Failed to fetch message content:', error);
+                return { error: error.message };
+            }
+        }
+
+        // Render message list
+        function renderMessages(data) {
+            const content = document.getElementById('inbox-content');
+
+            if (data.error) {
+                content.innerHTML = `<div class="error">❌ Error: ${escapeHtml(data.error)}</div>`;
+                return;
+            }
+
+            if (data.total === 0) {
+                content.innerHTML = `<div class="loading">📭 No messages in this folder</div>`;
+                return;
+            }
+
+            // Performance: Build HTML string first, then single DOM update
+            let html = '<div class="message-list">';
+
+            for (const msg of data.messages) {
+                const priorityClass = `priority-${msg.priority || 'normal'}`;
+                const personaClass = `persona-${msg.from || 'unknown'}`;
+                const tags = msg.tags ? msg.tags.split(',').map(t => t.trim()).filter(t => t) : [];
+
+                html += `
+                    <div class="message-item ${priorityClass}" onclick="openMessage('${data.folder}', '${escapeHtml(msg.filename)}')">
+                        <div class="message-header">
+                            <span class="message-from ${personaClass}">${escapeHtml(msg.from || 'unknown')}</span>
+                            <span class="message-timestamp">${formatTime(msg.timestamp)}</span>
+                        </div>
+                        <div class="message-preview">${escapeHtml(msg.preview)}</div>
+                        ${tags.length > 0 ? `
+                            <div class="message-tags">
+                                ${tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+
+            html += '</div>';
+
+            // Single DOM update (performance)
+            content.innerHTML = html;
+
+            // Update counts
+            const countId = `${data.folder}-count`;
+            const countEl = document.getElementById(countId);
+            if (countEl) {
+                countEl.textContent = `${data.total} messages`;
+            }
+        }
+
+        // Switch folder
+        async function switchFolder(folder) {
+            if (folder === currentFolder) return;
+
+            currentFolder = folder;
+
+            // Update tab styling
+            document.querySelectorAll('.folder-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.folder === folder);
+            });
+
+            // Close message viewer
+            closeMessage();
+
+            // Show loading
+            document.getElementById('inbox-content').innerHTML = '<div class="loading">⏳ Loading messages...</div>';
+
+            // Fetch and render
+            const data = await fetchMessages(folder);
+            renderMessages(data);
+        }
+
+        // Open message
+        async function openMessage(folder, filename) {
+            const viewer = document.getElementById('message-viewer');
+            const content = document.getElementById('message-viewer-content');
+
+            // Show loading
+            content.innerHTML = '<div class="loading">⏳ Loading message content...</div>';
+            viewer.classList.add('active');
+
+            // Scroll to viewer
+            viewer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+            // Fetch content
+            const data = await fetchMessageContent(folder, filename);
+
+            if (data.error) {
+                content.innerHTML = `<div class="error">❌ Error: ${escapeHtml(data.error)}</div>`;
+                return;
+            }
+
+            // Render content
+            content.innerHTML = `<pre>${escapeHtml(data.content)}</pre>`;
+        }
+
+        // Close message viewer
+        function closeMessage() {
+            document.getElementById('message-viewer').classList.remove('active');
+        }
+
+        // Initial load
+        async function init() {
+            // Load both folder counts in parallel (performance)
+            const [unreadData, readData] = await Promise.all([
+                fetchMessages('unread'),
+                fetchMessages('read')
+            ]);
+
+            // Update counts
+            document.getElementById('unread-count').textContent = `${unreadData.total || 0} messages`;
+            document.getElementById('read-count').textContent = `${readData.total || 0} messages`;
+
+            // Render current folder
+            renderMessages(unreadData);
+        }
+
+        // Start
+        init();
+    </script>
+</body>
+</html>

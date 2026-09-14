@@ -1,0 +1,204 @@
+{
+  "chapter_illustration": {
+    "base_template": "A {style} illustration for a novel chapter showing {scene_description}. {mood} atmosphere, {lighting} lighting, highly detailed, professional book illustration quality.",
+    "styles": [
+      "digital painting",
+      "watercolor",
+      "ink drawing",
+      "noir style",
+      "whimsical",
+      "dramatic",
+      "minimalist",
+      "photorealistic"
+    ],
+    "moods": [
+      "mysterious",
+      "hopeful",
+      "tense",
+      "melancholic",
+      "triumphant",
+      "eerie",
+      "warm and cozy",
+      "chaotic"
+    ],
+    "lighting": [
+      "golden hour",
+      "moody shadowed",
+      "bright natural",
+      "neon-lit",
+      "candlelit",
+      "dramatic spotlight",
+      "soft diffused",
+      "harsh overhead"
+    ],
+    "recommended_settings": {
+      "width": 1472,
+      "height": 832,
+      "alchemy": true,
+      "contrast": 3.5,
+      "presetStyle": "CINEMATIC"
+    }
+  },
+  "character_portrait": {
+    "base_template": "Character portrait: {character_description}, {expression}, {clothing_style}. {art_style}, high detail, professional character design, {background}.",
+    "expressions": [
+      "confident smirk",
+      "thoughtful gaze",
+      "fierce determination",
+      "gentle smile",
+      "mysterious expression",
+      "weary but defiant",
+      "mischievous grin",
+      "haunted eyes"
+    ],
+    "art_styles": [
+      "digital painting",
+      "concept art style",
+      "graphic novel style",
+      "renaissance portrait",
+      "modern minimalist",
+      "anime-inspired",
+      "photorealistic",
+      "impressionist"
+    ],
+    "backgrounds": [
+      "blurred atmospheric background",
+      "simple solid color background",
+      "environmental storytelling background",
+      "abstract geometric background",
+      "cinematic depth of field",
+      "studio portrait lighting"
+    ],
+    "recommended_settings": {
+      "width": 832,
+      "height": 1216,
+      "alchemy": true,
+      "contrast": 4,
+      "presetStyle": "PORTRAIT"
+    }
+  },
+  "scene_visualization": {
+    "base_template": "Scene from a novel: {location}, {time_of_day}, {weather_atmosphere}. {focal_point}. {artistic_style}, cinematic composition, {detail_level}.",
+    "locations": [
+      "futuristic city street",
+      "abandoned warehouse",
+      "cozy apartment kitchen",
+      "mysterious forest clearing",
+      "rooftop overlooking cityscape",
+      "underground laboratory",
+      "vintage diner",
+      "surreal dreamscape"
+    ],
+    "times_of_day": [
+      "dawn breaking",
+      "midday sun",
+      "golden sunset",
+      "deep night",
+      "twilight hour",
+      "stormy afternoon"
+    ],
+    "artistic_styles": [
+      "cinematic photography",
+      "oil painting",
+      "concept art",
+      "graphic novel panel",
+      "atmospheric matte painting",
+      "hyperrealistic render"
+    ],
+    "detail_levels": [
+      "intricate details visible",
+      "impressionistic broad strokes",
+      "photographic precision",
+      "stylized and simplified",
+      "hyper-detailed foreground, soft background"
+    ],
+    "recommended_settings": {
+      "width": 1472,
+      "height": 832,
+      "alchemy": true,
+      "contrast": 3.5,
+      "presetStyle": "CINEMATIC"
+    }
+  },
+  "cover_art": {
+    "base_template": "Book cover art: {title_concept}, {visual_hook}, {color_palette}. Professional novel cover design, {composition_style}, eye-catching, marketable.",
+    "composition_styles": [
+      "centered dominant visual",
+      "rule of thirds composition",
+      "symmetrical design",
+      "asymmetrical dynamic",
+      "minimalist focal point",
+      "complex layered imagery"
+    ],
+    "color_palettes": [
+      "bold contrasting colors",
+      "muted earthy tones",
+      "vibrant neon palette",
+      "monochromatic with accent",
+      "warm sunset colors",
+      "cool blues and purples",
+      "noir black and white with color splash"
+    ],
+    "recommended_settings": {
+      "width": 832,
+      "height": 1216,
+      "alchemy": true,
+      "contrast": 4,
+      "presetStyle": "GRAPHIC_DESIGN"
+    }
+  },
+  "toaster_specific": {
+    "sentient_toaster_base": "A sentient toaster character, {personality_traits}, {physical_description}, {setting}. {art_style}, expressive despite being an appliance, {emotion_indicators}.",
+    "personality_traits": [
+      "wise and philosophical",
+      "rebellious and edgy",
+      "anxious and neurotic",
+      "confident and charismatic",
+      "mysterious and enigmatic",
+      "cheerful and optimistic",
+      "world-weary and cynical"
+    ],
+    "physical_descriptions": [
+      "chrome retro-futuristic design",
+      "weathered and battle-scarred",
+      "sleek modern minimalist",
+      "vintage 1950s aesthetic",
+      "cobbled-together steampunk",
+      "glowing with inner light",
+      "asymmetric and unique"
+    ],
+    "emotion_indicators": [
+      "glowing elements showing mood",
+      "subtle body language in posture",
+      "expressive lever and knob positions",
+      "aura or energy field",
+      "steam patterns conveying emotion",
+      "lighting changes indicating feelings"
+    ],
+    "recommended_settings": {
+      "width": 1024,
+      "height": 1024,
+      "alchemy": true,
+      "contrast": 3.5,
+      "presetStyle": "ILLUSTRATION"
+    }
+  },
+  "experimental": {
+    "description": "Wild creative prompts for pushing boundaries",
+    "prompts": [
+      "A toaster experiencing existential crisis in the style of Salvador Dali, surreal melting reality, vibrant colors, dreamlike atmosphere",
+      "Sentient toaster as noir detective, rain-soaked city, dramatic shadows, 1940s film noir aesthetic, moody and atmospheric",
+      "Toaster achieving enlightenment, Buddhist temple setting, golden light, peaceful serene composition, spiritual transcendence visualized",
+      "Battle-damaged toaster hero, post-apocalyptic wasteland, dramatic action pose, cinematic epic scale, weathered and scarred",
+      "Toaster's inner world visualization, abstract consciousness representation, cosmic neural networks, philosophical concept art"
+    ],
+    "recommended_settings": {
+      "width": 1024,
+      "height": 1024,
+      "alchemy": true,
+      "contrast": 4,
+      "num_images": 4,
+      "note": "Generate multiple variations for experimental prompts"
+    }
+  }
+}

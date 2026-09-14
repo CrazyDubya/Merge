@@ -1,0 +1,57 @@
+# Leonardo.ai Monitoring Configuration
+# Copy this file to 'config' and customize thresholds
+#
+# Usage:
+#   cp monitoring/config.example monitoring/config
+#   Edit monitoring/config with your preferred thresholds
+#   source monitoring/config && ./monitoring/check-health.sh --alert
+
+# Cost Thresholds
+# How much spending per day/week triggers alerts?
+export LEONARDO_COST_DAILY_THRESHOLD=10.00    # $10/day default
+export LEONARDO_COST_WEEKLY_THRESHOLD=50.00   # $50/week default
+
+# Error Rate Threshold
+# What percentage of failed generations triggers an alert?
+export LEONARDO_ERROR_RATE_THRESHOLD=10       # 10% error rate
+
+# Disk Usage Thresholds
+# How much disk space triggers warnings/critical alerts?
+export LEONARDO_DISK_WARNING_MB=500           # 500MB warning
+export LEONARDO_DISK_CRITICAL_MB=1000         # 1GB critical
+
+# Performance Threshold
+# How slow is "too slow" for a generation?
+export LEONARDO_PERF_SLOW_SECONDS=30          # 30 seconds
+
+# ============================================================================
+# EXAMPLE CONFIGURATIONS
+# ============================================================================
+
+# Conservative (tight budget, quick alerts)
+# export LEONARDO_COST_DAILY_THRESHOLD=5.00
+# export LEONARDO_COST_WEEKLY_THRESHOLD=20.00
+# export LEONARDO_ERROR_RATE_THRESHOLD=5
+# export LEONARDO_DISK_WARNING_MB=250
+# export LEONARDO_DISK_CRITICAL_MB=500
+
+# Moderate (default, balanced approach)
+# export LEONARDO_COST_DAILY_THRESHOLD=10.00
+# export LEONARDO_COST_WEEKLY_THRESHOLD=50.00
+# export LEONARDO_ERROR_RATE_THRESHOLD=10
+# export LEONARDO_DISK_WARNING_MB=500
+# export LEONARDO_DISK_CRITICAL_MB=1000
+
+# Liberal (high usage, tolerate more)
+# export LEONARDO_COST_DAILY_THRESHOLD=25.00
+# export LEONARDO_COST_WEEKLY_THRESHOLD=100.00
+# export LEONARDO_ERROR_RATE_THRESHOLD=20
+# export LEONARDO_DISK_WARNING_MB=1000
+# export LEONARDO_DISK_CRITICAL_MB=2000
+
+# Development/Testing (very permissive)
+# export LEONARDO_COST_DAILY_THRESHOLD=100.00
+# export LEONARDO_COST_WEEKLY_THRESHOLD=500.00
+# export LEONARDO_ERROR_RATE_THRESHOLD=50
+# export LEONARDO_DISK_WARNING_MB=5000
+# export LEONARDO_DISK_CRITICAL_MB=10000

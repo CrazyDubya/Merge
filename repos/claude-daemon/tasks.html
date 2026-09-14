@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daemon Task Queue</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .subtitle {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .nav-links {
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .nav-links a {
+            display: inline-block;
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 8px;
+            color: #fff;
+            text-decoration: none;
+            margin: 0 10px;
+            transition: all 0.3s ease;
+        }
+
+        .nav-links a:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+        }
+
+        /* Stats Summary */
+        .stats-summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        .stat-card.active {
+            border-color: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .stat-value {
+            font-size: 2.5em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            opacity: 0.8;
+            font-size: 0.95em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Filter Buttons */
+        .filters {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 10px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid transparent;
+            border-radius: 8px;
+            color: #fff;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.95em;
+        }
+
+        .filter-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        .filter-btn.active {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: rgba(255, 255, 255, 0.5);
+        }
+
+        /* Task List */
+        .task-list {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+
+        .task-item {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border-left: 5px solid transparent;
+        }
+
+        .task-item:hover {
+            background: rgba(0, 0, 0, 0.3);
+            transform: translateX(5px);
+        }
+
+        .task-item.status-pending {
+            border-left-color: #3b82f6;
+        }
+
+        .task-item.status-in_progress {
+            border-left-color: #f59e0b;
+            animation: pulse-glow 2s infinite;
+        }
+
+        .task-item.status-completed {
+            border-left-color: #10b981;
+            opacity: 0.7;
+        }
+
+        .task-item.priority-high {
+            box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 10px rgba(245, 158, 11, 0.5); }
+            50% { box-shadow: 0 0 25px rgba(245, 158, 11, 0.8); }
+        }
+
+        .task-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 10px;
+        }
+
+        .task-emoji {
+            font-size: 1.8em;
+        }
+
+        .task-title {
+            flex: 1;
+            font-size: 1.1em;
+            font-weight: 500;
+        }
+
+        .task-badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin: 10px 0;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 15px;
+            font-size: 0.85em;
+            font-weight: 500;
+        }
+
+        .badge-status {
+            background: rgba(59, 130, 246, 0.3);
+        }
+
+        .badge-status.in_progress {
+            background: rgba(245, 158, 11, 0.3);
+        }
+
+        .badge-status.completed {
+            background: rgba(16, 185, 129, 0.3);
+        }
+
+        .badge-priority {
+            background: rgba(156, 163, 175, 0.3);
+        }
+
+        .badge-priority.high {
+            background: rgba(239, 68, 68, 0.3);
+        }
+
+        .badge-priority.medium {
+            background: rgba(245, 158, 11, 0.3);
+        }
+
+        .badge-persona {
+            background: rgba(167, 139, 250, 0.3);
+        }
+
+        /* Persona emoji mapping */
+        .badge-persona.auditor::before { content: '🔍 '; }
+        .badge-persona.optimizer::before { content: '⚡ '; }
+        .badge-persona.architect::before { content: '🏗️ '; }
+        .badge-persona.experimenter::before { content: '🧪 '; }
+        .badge-persona.maintainer::before { content: '🔧 '; }
+        .badge-persona.skeptic::before { content: '🤔 '; }
+        .badge-persona.all::before { content: '👥 '; }
+
+        .task-preview {
+            font-size: 0.9em;
+            opacity: 0.8;
+            line-height: 1.5;
+            margin-top: 8px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* Task Details Modal */
+        .task-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .task-modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: rgba(102, 126, 234, 0.95);
+            border-radius: 20px;
+            padding: 30px;
+            max-width: 900px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: #fff;
+            padding: 10px 15px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.2em;
+            transition: all 0.3s ease;
+        }
+
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .modal-task-details {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 12px;
+            margin-top: 20px;
+            line-height: 1.8;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 0.95em;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            font-size: 1.3em;
+        }
+
+        .error {
+            background: rgba(239, 68, 68, 0.2);
+            border: 2px solid #ef4444;
+            border-radius: 12px;
+            padding: 25px;
+            text-align: center;
+            margin: 20px 0;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            opacity: 0.7;
+        }
+
+        .empty-state-icon {
+            font-size: 4em;
+            margin-bottom: 15px;
+        }
+
+        /* ===================================
+           MOBILE RESPONSIVE STYLES
+           Experimenter: Mobile-first responsive design
+           Breakpoints: 320px (mobile), 768px (tablet), 1024px+ (desktop)
+           =================================== */
+
+        /* Mobile: 320px - 767px */
+        @media (max-width: 767px) {
+            body {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 1.8em; /* Reduced from 2.5em */
+            }
+
+            .subtitle {
+                font-size: 1em; /* Reduced from 1.2em */
+            }
+
+            header {
+                margin-bottom: 20px;
+            }
+
+            /* Stack navigation links on mobile */
+            .nav-links {
+                margin: 15px 0;
+            }
+
+            .nav-links a {
+                display: block; /* Stack vertically */
+                margin: 8px auto;
+                padding: 12px 20px; /* Touch-friendly */
+                min-height: 44px; /* WCAG minimum */
+                max-width: 300px;
+            }
+
+            /* Stats summary - responsive grid */
+            .stats-summary {
+                grid-template-columns: repeat(2, 1fr); /* 2 columns on mobile */
+                gap: 10px;
+            }
+
+            .stat-card {
+                padding: 15px; /* Reduced from 20px */
+                min-height: 44px; /* Touch target */
+            }
+
+            .stat-value {
+                font-size: 2em; /* Reduced from 2.5em */
+            }
+
+            .stat-label {
+                font-size: 0.85em;
+            }
+
+            /* Filters wrap better on mobile */
+            .filters {
+                gap: 8px;
+                justify-content: center;
+            }
+
+            .filter-btn {
+                padding: 10px 15px; /* Touch-friendly */
+                min-height: 44px;
+                font-size: 0.85em;
+            }
+
+            /* Task list adjustments */
+            .task-list {
+                padding: 15px; /* Reduced from 25px */
+            }
+
+            .task-item {
+                padding: 15px; /* Touch-friendly */
+                margin-bottom: 12px;
+            }
+
+            .task-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+
+            .task-emoji {
+                font-size: 1.5em; /* Slightly smaller */
+            }
+
+            .task-title {
+                font-size: 1em;
+            }
+
+            /* Task badges wrap better */
+            .task-badges {
+                gap: 6px;
+            }
+
+            .badge {
+                font-size: 0.8em;
+                padding: 3px 10px;
+            }
+
+            .task-preview {
+                font-size: 0.85em;
+            }
+
+            /* Modal adjustments for mobile */
+            .task-modal {
+                padding: 10px;
+            }
+
+            .modal-content {
+                padding: 20px; /* Reduced from 30px */
+                max-width: 100%;
+            }
+
+            .modal-close {
+                padding: 10px 15px; /* Touch-friendly */
+                min-height: 44px;
+                font-size: 1.1em;
+            }
+
+            .modal-task-details {
+                padding: 15px; /* Reduced from 20px */
+                font-size: 0.9em;
+            }
+
+            /* Empty state adjustments */
+            .empty-state {
+                padding: 40px 15px;
+            }
+
+            .empty-state-icon {
+                font-size: 3em;
+            }
+
+            /* Loading/error states */
+            .loading {
+                padding: 40px 15px;
+                font-size: 1.1em;
+            }
+
+            .error {
+                padding: 20px;
+                margin: 15px 0;
+            }
+        }
+
+        /* Tablet: 768px - 1023px */
+        @media (min-width: 768px) and (max-width: 1023px) {
+            h1 {
+                font-size: 2.2em;
+            }
+
+            .stats-summary {
+                grid-template-columns: repeat(4, 1fr); /* 4 columns on tablet */
+            }
+
+            .task-list {
+                padding: 20px;
+            }
+        }
+
+        /* Desktop 1024px+ uses existing styles */
+    </style>
+</head>
+<body>
+    <!-- Authentication Check (same as dashboard) -->
+    <script>
+        function checkDashboardAuth() {
+            const storedHash = localStorage.getItem('daemon_auth_token');
+            const VALID_TOKENS = new Set([
+                '79a8427e7b4d26669df2b08c90aae85667ee979fe74efb1f1a975570747f3371',
+            ]);
+
+            if (!storedHash || !VALID_TOKENS.has(storedHash)) {
+                window.location.href = 'auth.html';
+                return false;
+            }
+
+            const authTime = localStorage.getItem('daemon_auth_time');
+            if (authTime) {
+                const elapsed = Date.now() - parseInt(authTime);
+                const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+                if (elapsed > TWENTY_FOUR_HOURS) {
+                    localStorage.removeItem('daemon_auth_token');
+                    localStorage.removeItem('daemon_auth_time');
+                    window.location.href = 'auth.html';
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        if (!checkDashboardAuth()) {
+            document.body.style.display = 'none';
+        }
+    </script>
+
+    <div class="container">
+        <header>
+            <h1>📋 Task Queue</h1>
+            <p class="subtitle">What the personas are working on</p>
+        </header>
+
+        <div class="nav-links">
+            <a href="dashboard.html">← Back to Dashboard</a>
+            <a href="inbox.html">📬 Inbox</a>
+        </div>
+
+        <!-- Stats Summary -->
+        <div class="stats-summary">
+            <div class="stat-card active" data-filter="all" onclick="filterTasks('all')">
+                <div class="stat-value" id="stat-total">-</div>
+                <div class="stat-label">Total Tasks</div>
+            </div>
+            <div class="stat-card" data-filter="pending" onclick="filterTasks('pending')">
+                <div class="stat-value" id="stat-pending">-</div>
+                <div class="stat-label">📝 Pending</div>
+            </div>
+            <div class="stat-card" data-filter="in_progress" onclick="filterTasks('in_progress')">
+                <div class="stat-value" id="stat-in-progress">-</div>
+                <div class="stat-label">🔄 In Progress</div>
+            </div>
+            <div class="stat-card" data-filter="completed" onclick="filterTasks('completed')">
+                <div class="stat-value" id="stat-completed">-</div>
+                <div class="stat-label">✅ Completed</div>
+            </div>
+        </div>
+
+        <!-- Filters -->
+        <div class="filters" id="persona-filters">
+            <!-- Dynamically populated -->
+        </div>
+
+        <!-- Task List -->
+        <div id="task-content">
+            <div class="loading">⏳ Loading tasks...</div>
+        </div>
+
+        <!-- Task Details Modal -->
+        <div class="task-modal" id="task-modal">
+            <div class="modal-content">
+                <button class="modal-close" onclick="closeTaskModal()">✕</button>
+                <div id="modal-task-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // EXPERIMENTER: Modern task viewer with filtering & sorting
+        let allTasks = [];
+        let currentFilter = 'all';
+        let currentPersonaFilter = null;
+
+        // HTML escaping (security)
+        function escapeHtml(unsafe) {
+            if (unsafe == null) return '';
+            return String(unsafe)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        // Fetch tasks from API
+        async function fetchTasks() {
+            try {
+                const authToken = localStorage.getItem('daemon_auth_token');
+                const response = await fetch('api/tasks.sh', {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                return await response.json();
+            } catch (error) {
+                console.error('Failed to fetch tasks:', error);
+                return { error: error.message, tasks: [], summary: {} };
+            }
+        }
+
+        // Update stats display
+        function updateStats(summary) {
+            document.getElementById('stat-total').textContent = summary.total || 0;
+            document.getElementById('stat-pending').textContent = summary.pending || 0;
+            document.getElementById('stat-in-progress').textContent = summary.in_progress || 0;
+            document.getElementById('stat-completed').textContent = summary.completed || 0;
+        }
+
+        // Build persona filters
+        function buildPersonaFilters(tasks) {
+            const personaSet = new Set();
+            tasks.forEach(task => {
+                task.personas.forEach(p => personaSet.add(p));
+            });
+
+            const filtersHtml = Array.from(personaSet).sort().map(persona => {
+                return `<button class="filter-btn badge-persona ${persona}" data-persona="${persona}" onclick="filterByPersona('${persona}')">${persona}</button>`;
+            }).join('');
+
+            document.getElementById('persona-filters').innerHTML = filtersHtml;
+        }
+
+        // Filter tasks by status
+        function filterTasks(status) {
+            currentFilter = status;
+            currentPersonaFilter = null;
+
+            // Update stat card active state
+            document.querySelectorAll('.stat-card').forEach(card => {
+                card.classList.toggle('active', card.dataset.filter === status);
+            });
+
+            // Update persona filter buttons
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            renderTasks();
+        }
+
+        // Filter tasks by persona
+        function filterByPersona(persona) {
+            currentPersonaFilter = currentPersonaFilter === persona ? null : persona;
+
+            // Update filter button active state
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.persona === persona && currentPersonaFilter);
+            });
+
+            renderTasks();
+        }
+
+        // Render task list
+        function renderTasks() {
+            const content = document.getElementById('task-content');
+
+            // Filter tasks
+            let filtered = allTasks;
+
+            if (currentFilter !== 'all') {
+                filtered = filtered.filter(t => t.status === currentFilter);
+            }
+
+            if (currentPersonaFilter) {
+                filtered = filtered.filter(t => t.personas.includes(currentPersonaFilter));
+            }
+
+            if (filtered.length === 0) {
+                content.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-state-icon">🎉</div>
+                        <div>No tasks match the current filter</div>
+                    </div>
+                `;
+                return;
+            }
+
+            // Build task HTML
+            const tasksHtml = filtered.map(task => {
+                const personasBadges = task.personas.map(p =>
+                    `<span class="badge badge-persona ${p}">${p}</span>`
+                ).join('');
+
+                return `
+                    <div class="task-item status-${task.status} priority-${task.priority}" onclick="openTaskModal('${task.id}')">
+                        <div class="task-header">
+                            <span class="task-emoji">${task.emoji}</span>
+                            <span class="task-title">${escapeHtml(task.title)}</span>
+                        </div>
+                        <div class="task-badges">
+                            <span class="badge badge-status ${task.status}">${task.status.replace('_', ' ')}</span>
+                            ${task.priority !== 'normal' ? `<span class="badge badge-priority ${task.priority}">${task.priority}</span>` : ''}
+                            ${personasBadges}
+                        </div>
+                        <div class="task-preview">${escapeHtml(task.details.substring(0, 150))}...</div>
+                    </div>
+                `;
+            }).join('');
+
+            content.innerHTML = `<div class="task-list">${tasksHtml}</div>`;
+        }
+
+        // Open task details modal
+        function openTaskModal(taskId) {
+            const task = allTasks.find(t => t.id === taskId);
+            if (!task) return;
+
+            const modal = document.getElementById('task-modal');
+            const modalContent = document.getElementById('modal-task-content');
+
+            const personasBadges = task.personas.map(p =>
+                `<span class="badge badge-persona ${p}">${p}</span>`
+            ).join('');
+
+            modalContent.innerHTML = `
+                <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+                    <span style="font-size: 3em;">${task.emoji}</span>
+                    <div>
+                        <h2 style="font-size: 1.8em; margin-bottom: 8px;">${escapeHtml(task.title)}</h2>
+                        <div class="task-badges">
+                            <span class="badge badge-status ${task.status}">${task.status.replace('_', ' ')}</span>
+                            <span class="badge badge-priority ${task.priority}">${task.priority}</span>
+                            ${personasBadges}
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-task-details">${escapeHtml(task.details)}</div>
+                <div style="margin-top: 15px; opacity: 0.7; font-size: 0.9em;">
+                    Line ${task.line_number} in tasks/queue.md
+                </div>
+            `;
+
+            modal.classList.add('active');
+        }
+
+        // Close task details modal
+        function closeTaskModal() {
+            document.getElementById('task-modal').classList.remove('active');
+        }
+
+        // Close modal on background click
+        document.getElementById('task-modal').addEventListener('click', (e) => {
+            if (e.target.id === 'task-modal') {
+                closeTaskModal();
+            }
+        });
+
+        // Keyboard shortcut to close modal (ESC key)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                closeTaskModal();
+            }
+        });
+
+        // Initial load
+        async function init() {
+            const data = await fetchTasks();
+
+            if (data.error) {
+                document.getElementById('task-content').innerHTML = `
+                    <div class="error">❌ Error: ${escapeHtml(data.error)}</div>
+                `;
+                return;
+            }
+
+            allTasks = data.tasks || [];
+            updateStats(data.summary);
+            buildPersonaFilters(allTasks);
+            renderTasks();
+        }
+
+        // Start
+        init();
+
+        // Auto-refresh every 30 seconds
+        setInterval(init, 30000);
+    </script>
+</body>
+</html>

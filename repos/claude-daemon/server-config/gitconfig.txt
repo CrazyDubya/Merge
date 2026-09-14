@@ -1,0 +1,7 @@
+[user]
+	name = CrazyDubya
+	email = claude-daemon@recursion.local
+[init]
+	defaultBranch = main
+[credential]
+	helper = store

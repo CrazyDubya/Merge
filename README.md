@@ -15,6 +15,8 @@ A unified agent orchestration framework combining best practices from multiple a
 | qwen-code | Qwen | Coding agent architecture baseline |
 | Village | CrazyDubya | Provider abstraction, storage backends, rate limiting, collaborate loop (merged 2026-09-12 via `git subtree`; full history in `repos/Village/`) |
 | role-based-llm-framework | CrazyDubya | PM/coder/researcher role algorithms + dashboard (merged 2026-09-12 via `git subtree`; full history in `repos/role-based-llm-framework/`) |
+| MADagent | CrazyDubya | Governed agent loop: planner, memory, ledger, governance, reflection, executor, event bus (merged 2026-09-14; full tree in `repos/MADagent/`) |
+| claude-daemon | CrazyDubya | Autonomous 6-persona Claude agent daemon: tmux, circadian persona switching, lib/scripts/personalities (merged 2026-09-14; framework subset in `repos/claude-daemon/`) |
 
 ## What's new (2026-09-12 consolidation)
 
@@ -63,6 +65,25 @@ pip install httpx
 export OPENROUTER_API_KEY="your-key-here"
 python test_harness.py
 ```
+
+## Wave 5 consolidation (2026-09-14)
+
+Two more agent frameworks folded in as reference subtrees under `repos/`:
+
+| Source repo | Visibility | Target subdir | Source HEAD | Notes |
+|---|---|---|---|---|
+| `CrazyDubya/MADagent` | public → public | `repos/MADagent/` | `75dbdd72a33aa93257541e260408aa30ffd2207e` | Full tree, byte-identical; archived 2026-09-14 |
+| `CrazyDubya/claude-daemon` | **private → public (Stephen-approved)** | `repos/claude-daemon/` | `5a0c416914f1a2cfac8dc90dbb492b7320225d98` | Framework subset only (see exclusions below); archived 2026-09-14 |
+
+**claude-daemon scope note:** the source repo (197MB, 10,293 blobs) is mostly
+live-daemon runtime state. Only the framework was merged — `docs/`, `lib/`,
+`scripts/`, `personalities/`, `integrations/`, `tasks/`, `metrics/`, `triggers/`,
+`api/`, `server-config/`, `hooks/`, `security/`, `tests/`, `creative/`, and root
+configs. Excluded from Merge (preserved in the archived source): runtime
+transcripts/state (`conversation-history/`, `memory/`, `monitoring-alerts/`,
+`inbox/`, `logs/`, `state/`, `.cache/`), backups (`daemon-watcher-backup/`,
+`misc-backup/`), and `keys/` — which contains a committed GPG **private** backup
+key (Key ID `319A72D7899CC40E`) that must never go public.
 
 ## Architecture
 

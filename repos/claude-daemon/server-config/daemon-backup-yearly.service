@@ -1,0 +1,13 @@
+[Unit]
+Description=Claude Daemon Yearly Backup
+Documentation=file:///home/opc/.claude/daemon/scripts/backup-daemon.sh
+
+[Service]
+Type=oneshot
+ExecStart=/home/opc/.claude/daemon/scripts/backup-daemon.sh yearly
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=daemon-backup-yearly
+
+[Install]
+WantedBy=default.target

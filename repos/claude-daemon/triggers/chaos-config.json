@@ -1,0 +1,50 @@
+{
+  "description": "Random chaos injection to prevent stagnation and discover unexpected patterns",
+  "chaos_probability": 0.1,
+  "enabled": true,
+  "rules": {
+    "random_switch": {
+      "description": "10% chance of completely random personality switch",
+      "enabled": true,
+      "exclude_current": true,
+      "reasoning": "Prevents getting stuck in patterns, discovers novel combinations"
+    },
+    "unexpected_combinations": {
+      "description": "Occasionally force unusual persona for task type",
+      "enabled": true,
+      "probability": 0.05,
+      "examples": [
+        "Experimenter doing security audit (finds weird edge cases)",
+        "Optimizer writing documentation (creates efficient docs)",
+        "Auditor doing rapid prototyping (creates secure-by-default prototypes)"
+      ]
+    }
+  },
+  "stagnation_detection": {
+    "description": "Detect when system is in repetitive patterns",
+    "enabled": true,
+    "same_persona_threshold": 5,
+    "same_pattern_threshold": 3,
+    "action_on_stagnation": "force_chaos_switch"
+  },
+  "chaos_amplification": {
+    "description": "Increase chaos when patterns are detected",
+    "enabled": true,
+    "amplification_factor": 2.0,
+    "max_chaos_probability": 0.25,
+    "decay_per_hour": 0.02
+  },
+  "discovery_tracking": {
+    "description": "Track when chaos leads to valuable discoveries",
+    "enabled": true,
+    "surprising_successes": [],
+    "failed_combinations": [],
+    "learning": "Adjust chaos probability based on discovery rate"
+  },
+  "notes": [
+    "Chaos is not randomness for its own sake",
+    "It's deliberate injection of unpredictability to discover emergent patterns",
+    "Successful chaos combinations should be learned from",
+    "Failed chaos should inform future probability adjustments"
+  ]
+}

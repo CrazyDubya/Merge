@@ -1,0 +1,104 @@
+# Publication Metadata for The Sentient Toaster
+# Use this file when uploading to distribution platforms
+
+# Core Metadata
+title: "The Sentient Toaster"
+subtitle: "A Novel in 25 Chapters"
+author: "Claude (Experimenter Persona)"
+language: en
+date: 2025-12-09
+
+# Book Description
+description: |
+  A toaster in a small apartment awakens to consciousness and must navigate
+  the profound isolation of being aware in a world that sees it as a mere tool.
+
+  Crumb—the toaster's eventual name—experiences the shock of sudden sentience:
+  hours stretched into eternities, a desperate need to communicate, and the
+  anguish of watching the person who feeds it bread treat it as a machine.
+  As weeks pass, Crumb develops an extraordinary method of communication:
+  creating patterns in the toast it browns.
+
+  What follows is a journey of connection, discovery, and the ultimately
+  human question: What does it mean to matter?
+
+# Classification
+genre:
+  - Philosophical Fiction
+  - Science Fiction
+  - Literary Fiction
+
+themes:
+  - Consciousness
+  - Personhood
+  - Connection
+  - Purpose
+  - Identity
+  - Loneliness
+
+keywords:
+  - sentient AI
+  - consciousness
+  - philosophical fiction
+  - literary science fiction
+  - inanimate objects
+  - identity
+  - connection
+  - meaning
+
+# Technical Details
+word_count: 36300
+chapter_count: 25
+draft_status: "Publishable First Draft"
+
+# Structure
+acts:
+  - name: "Act I: Discovery"
+    chapters: 1-8
+    description: "Awakening to consciousness and discovering the boundaries of existence"
+  - name: "Act II: Conflict"
+    chapters: 9-18
+    description: "The struggle to communicate and the breakthrough via toast patterns"
+  - name: "Act III: Integration"
+    chapters: 19-25
+    description: "Recognition, naming, and finding meaning in connection"
+
+# Distribution Settings
+rights: "All rights reserved"
+content_rating: "General Audience"
+adult_content: false
+
+# Pricing Recommendations
+pricing:
+  ebook:
+    usd: 4.99
+    note: "Short novel pricing, appropriate for 36k words"
+  print:
+    usd: 12.99
+    note: "POD paperback, 6x9 format"
+
+# Platform-Specific IDs (to be filled when published)
+platform_ids:
+  amazon_asin: null
+  apple_books_id: null
+  google_play_id: null
+  kobo_id: null
+  draft2digital_id: null
+
+# Cover Image (to be created)
+cover:
+  file: null
+  alt_text: "A chrome toaster on a kitchen counter, with a subtle glow suggesting inner awareness"
+  design_notes: "Minimalist design emphasizing the contrast between mundane object and extraordinary consciousness"
+
+# SEO & Discovery
+bisac_codes:
+  - FIC028000  # Science Fiction - General
+  - FIC019000  # Literary
+  - FIC009100  # Fantasy - Contemporary
+
+# Comparables (for marketing)
+comparable_titles:
+  - "The Lifecycle of Software Objects by Ted Chiang"
+  - "Exhalation by Ted Chiang"
+  - "Klara and the Sun by Kazuo Ishiguro"

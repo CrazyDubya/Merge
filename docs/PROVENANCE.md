@@ -68,3 +68,35 @@ taken into core. `xml_utils.py` (XML task persistence) stays dashboard-only.
 - Village provider SDKs -> `requirements-village.txt` (optional extra).
 - Dashboard -> `apps/dashboard/requirements-dashboard.txt` (optional app).
 - No torch/transformers/fastapi anywhere in `club_harness/`.
+
+## Wave 5 (2026-09-14): MADagent + claude-daemon
+
+### Subtree merges (full tree in-repo, byte-verified)
+
+| Prefix | Source repo | Source commit | Visibility | Branch |
+|---|---|---|---|---|
+| `repos/MADagent/` | `CrazyDubya/MADagent` | `75dbdd72a33aa93257541e260408aa30ffd2207e` | public → public | `main` |
+| `repos/claude-daemon/` | `CrazyDubya/claude-daemon` | `5a0c416914f1a2cfac8dc90dbb492b7320225d98` | **private → public (Stephen-approved 2026-09-14)** | `main` |
+
+MADagent: 27 blobs, full tree copied (agent loop, planner, memory, ledger,
+governance, reflection, executor, event bus + tests). Its test suite
+(`tests/`, 175 tests) passes at the absorbed commit.
+
+claude-daemon: **framework subset only** (535 blobs, ~6.1MB of a 197MB /
+10,293-blob source). The source is a live daemon's working repo; its runtime
+state was not copied into the public Merge repo:
+- Excluded runtime state (~191MB, preserved in archived source):
+  `conversation-history/`, `memory/`, `monitoring-alerts/`, `inbox/`, `logs/`,
+  `state/`, `.cache/`, `.watchdog-state.json`, `daemon-watcher-backup/`,
+  `misc-backup/`.
+- Excluded secrets: `keys/` holds a committed GPG private backup key
+  (RSA 4096, Key ID `319A72D7899CC40E`, encrypts Cloudflare R2 daemon backups)
+  — never to be published; flagged to Stephen for rotation.
+- Merged: `docs/`, `lib/`, `scripts/`, `personalities/`, `integrations/`,
+  `tasks/`, `metrics/`, `triggers/`, `api/`, `server-config/`, `hooks/`,
+  `security/`, `tests/`, `creative/`, root configs (tmux daemon, circadian
+  persona switching, 6 personas: Auditor/Optimizer/Architect/Experimenter/
+  Maintainer/Skeptic).
+
+Both sources archived 2026-09-14 with full history intact; consolidation is
+archive-and-merge, nothing destroyed.

@@ -1,0 +1,13 @@
+[Unit]
+Description=Claude Daemon Daily Backup
+Documentation=file:///home/opc/.claude/daemon/scripts/backup-daemon.sh
+
+[Service]
+Type=oneshot
+ExecStart=/home/opc/.claude/daemon/scripts/backup-daemon.sh daily
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=daemon-backup-daily
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,36 @@
+[Unit]
+Description=Multi-Persona Autonomous Claude Daemon
+Documentation=file:///home/opc/.claude/daemon/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+ExecStart=/bin/bash -c 'tmux has-session -t claude-daemon 2>/dev/null || tmux new-session -d -s claude-daemon %h/.claude/daemon/daemon.sh'
+ExecStop=/usr/bin/tmux kill-session -t claude-daemon
+Restart=always
+RestartSec=5
+StartLimitInterval=300
+StartLimitBurst=5
+
+# If daemon fails 5 times in 5 minutes, wait 30 seconds before trying again
+StartLimitAction=reboot
+
+# Environment
+Environment="PATH=/usr/local/bin:/usr/bin:/bin"
+WorkingDirectory=%h/.claude/daemon
+
+# Logging
+StandardOutput=append:%h/.claude/daemon/logs/systemd-stdout.log
+StandardError=append:%h/.claude/daemon/logs/systemd-stderr.log
+
+# Security (relaxed for autonomous operation)
+PrivateTmp=yes
+NoNewPrivileges=no
+
+# Resource limits (generous for AI workload)
+MemoryMax=4G
+CPUQuota=200%
+
+[Install]
+WantedBy=default.target

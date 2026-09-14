@@ -1,0 +1,8 @@
+{
+  "scheduled_hours": [9, 14, 20],
+  "reflection_duration_minutes": 30,
+  "cooldown_hours_scheduled": 3,
+  "cooldown_hours_idle": 0,
+  "description": "Reflection scheduling configuration for Phase 5",
+  "notes": "scheduled_hours: Hours (0-23) when scheduled reflection occurs with cooldown enforcement. cooldown_hours_scheduled: Minimum hours between scheduled reflections (prevents spam in narrow windows). cooldown_hours_idle: Cooldown for idle reflection (0 = no cooldown, daemon can reflect whenever idle)"
+}

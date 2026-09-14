@@ -1,0 +1,7 @@
+tunnel: 9d3b9931-2fc2-4c1e-a376-1a19e5999be4
+credentials-file: /home/opc/.cloudflared/9d3b9931-2fc2-4c1e-a376-1a19e5999be4.json
+
+ingress:
+  - hostname: daemon.claude-play.com
+    service: http://localhost:8888
+  - service: http_status:404

@@ -1,0 +1,1 @@
+scripts/mark-messages-read.sh

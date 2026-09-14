@@ -1,0 +1,26 @@
+# Daemon watchdog monitoring (every 5 minutes)
+*/5 * * * * ~/.claude/daemon-watcher/daemon-watcher.sh >> ~/.claude/daemon-watcher/watcher.log 2>&1
+
+# UNIFIED MEMORY CONSOLIDATION (daily at 3 AM)
+# Replaces: rotate-emergence-log, rotate-inter-persona-dialogue, archive-timeline
+# See: docs/ARCHITECTURE-MEMORY.md
+0 3 * * * /home/opc/.claude/daemon/scripts/consolidate-memory.sh >> /home/opc/.claude/daemon/logs/consolidation.log 2>&1
+
+# Activity log rotation (daily at 2:05 AM - separate from memory consolidation)
+5 2 * * * /home/opc/.claude/daemon/scripts/rotate-activity-log.sh >> /home/opc/.claude/daemon/logs/activity-rotation.log 2>&1
+
+# State audit log rotation (weekly, Sundays at 2:15 AM)
+15 2 * * 0 /home/opc/.claude/daemon/scripts/rotate-state-audit-log.sh >> /home/opc/.claude/daemon/logs/state-audit-rotation.log 2>&1
+
+# Switch history rotation (weekly, Sundays at 2:20 AM)
+20 2 * * 0 /home/opc/.claude/daemon/scripts/rotate-switch-history.sh >> /home/opc/.claude/daemon/logs/switch-rotation.log 2>&1
+
+# Task queue rotation (monthly, 1st of month at 2:25 AM)
+25 2 1 * * /home/opc/.claude/daemon/scripts/rotate-task-queue.sh >> /home/opc/.claude/daemon/logs/task-rotation.log 2>&1
+0 * * * * /home/opc/.claude/daemon/scripts/detect-anomalies.sh >> /home/opc/.claude/daemon/logs/anomaly-detection.log 2>&1
+0 4 * * * /home/opc/.claude/daemon/scripts/calculate-baselines.sh >> /home/opc/.claude/daemon/logs/baseline-calculation.log 2>&1
+0 8 * * * /home/opc/.claude/daemon/scripts/health-dashboard.sh --json > /home/opc/.claude/daemon/monitoring-alerts/daily-health-$(date +\%Y\%m\%d).json
+0 * * * * /home/opc/.claude/daemon/scripts/monitor-persona-health.sh >> /home/opc/.claude/daemon/logs/persona-health-monitor.log 2>&1
+0 9 * * * /home/opc/.claude/daemon/scripts/persona-health-dashboard.sh --json > /home/opc/.claude/daemon/monitoring-alerts/persona-health-$(date +%Y%m%d).json 2>&1
+*/30 * * * * /home/opc/.claude/daemon/scripts/expire-persona-cooldowns.sh >> /home/opc/.claude/daemon/logs/cooldown-expiration.log 2>&1
+*/15 * * * * /home/opc/.claude/daemon/scripts/self-healing-loop.sh >> /home/opc/.claude/daemon/logs/self-healing-loop.log 2>&1

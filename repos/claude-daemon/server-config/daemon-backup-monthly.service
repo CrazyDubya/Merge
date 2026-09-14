@@ -1,0 +1,13 @@
+[Unit]
+Description=Claude Daemon Monthly Backup
+Documentation=file:///home/opc/.claude/daemon/scripts/backup-daemon.sh
+
+[Service]
+Type=oneshot
+ExecStart=/home/opc/.claude/daemon/scripts/backup-daemon.sh monthly
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=daemon-backup-monthly
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,479 @@
+{
+  "alerts": [
+    {
+      "timestamp": "2025-12-08T17:10:02Z",
+      "subject": "TASK_AGE_CRITICAL",
+      "priority": "critical",
+      "count": 1272
+    },
+    {
+      "timestamp": "2025-12-13T16:00:01Z",
+      "subject": "Persona Health Degradation: maintainer",
+      "priority": "medium",
+      "count": 866
+    },
+    {
+      "timestamp": "2025-12-13T17:00:02Z",
+      "subject": "Persona Health Degradation: architect",
+      "priority": "medium",
+      "count": 873
+    },
+    {
+      "timestamp": "2025-12-14T03:53:45Z",
+      "subject": "TASK_AGE_CRITICAL",
+      "priority": "critical",
+      "count": 912
+    },
+    {
+      "timestamp": "2025-12-16T04:00:01Z",
+      "subject": "Persona Health Degradation: maintainer",
+      "priority": "medium",
+      "count": 807
+    },
+    {
+      "timestamp": "2025-12-16T05:00:02Z",
+      "subject": "Persona Health Degradation: architect",
+      "priority": "medium",
+      "count": 814
+    },
+    {
+      "timestamp": "2025-12-16T15:59:57Z",
+      "subject": "TASK_AGE_CRITICAL",
+      "priority": "critical",
+      "count": 865
+    },
+    {
+      "timestamp": "2025-12-18T16:00:02Z",
+      "subject": "Persona Health Degradation: maintainer",
+      "priority": "medium",
+      "count": 748
+    },
+    {
+      "timestamp": "2025-12-18T17:00:02Z",
+      "subject": "Persona Health Degradation: architect",
+      "priority": "medium",
+      "count": 779
+    },
+    {
+      "timestamp": "2025-12-18T19:00:02Z",
+      "subject": "Persona Health Degradation: auditor",
+      "priority": "medium",
+      "count": 807
+    },
+    {
+      "timestamp": "2025-12-19T11:41:08Z",
+      "subject": "TASK_AGE_CRITICAL",
+      "priority": "critical",
+      "count": 835
+    },
+    {
+      "timestamp": "2025-12-21T04:00:02Z",
+      "subject": "Persona Health Degradation: maintainer",
+      "priority": "medium",
+      "count": 689
+    },
+    {
+      "timestamp": "2025-12-21T05:00:02Z",
+      "subject": "Persona Health Degradation: architect",
+      "priority": "medium",
+      "count": 720
+    },
+    {
+      "timestamp": "2025-12-21T08:00:02Z",
+      "subject": "Persona Health Degradation: auditor",
+      "priority": "medium",
+      "count": 747
+    },
+    {
+      "timestamp": "2025-12-22T00:18:27Z",
+      "subject": "TASK_AGE_CRITICAL",
+      "priority": "critical",
+      "count": 777
+    },
+    {
+      "timestamp": "2025-12-23T21:00:01Z",
+      "subject": "Persona Health Degradation: auditor",
+      "priority": "medium",
+      "count": 687
+    },
+    {
+      "timestamp": "2025-12-24T16:00:02Z",
+      "subject": "Persona Health Degradation: architect",
+      "priority": "medium",
+      "count": 662
+    },
+    {
+      "timestamp": "2025-12-24T17:00:02Z",
+      "subject": "Persona Health Degradation: maintainer",
+      "priority": "medium",
+      "count": 643
+    },
+    {
+      "timestamp": "2025-12-25T16:10:09Z",
+      "subject": "TASK_AGE_CRITICAL",
+      "priority": "critical",
+      "count": 756
+    },
+    {
+      "timestamp": "2025-12-26T09:00:02Z",
+      "subject": "Persona Health Degradation: auditor",
+      "priority": "medium",
+      "count": 628
+    },
+    {
+      "timestamp": "2025-12-27T05:00:01Z",
+      "subject": "Persona Health Degradation: architect",
+      "priority": "medium",
+      "count": 602
+    },
+    {
+      "timestamp": "2025-12-27T06:00:02Z",
+      "subject": "Persona Health Degradation: maintainer",
+      "priority": "medium",
+      "count": 583
+    },
+    {
+      "timestamp": "2025-12-28T11:47:57Z",
+      "subject": "TASK_AGE_CRITICAL",
+      "priority": "critical",
+      "count": 699
+    },
+    {
+      "timestamp": "2025-12-28T21:00:02Z",
+      "subject": "Persona Health Degradation: auditor",
+      "priority": "medium",
+      "count": 569
+    },
+    {
+      "timestamp": "2025-12-29T17:00:01Z",
+      "subject": "Persona Health Degradation: architect",
+      "priority": "medium",
+      "count": 543
+    },
+    {
+      "timestamp": "2025-12-29T19:00:01Z",
+      "subject": "Persona Health Degradation: maintainer",
+      "priority": "medium",
+      "count": 523
+    },
+    {
+      "timestamp": "2025-12-31T00:23:16Z",
+      "subject": "TASK_AGE_CRITICAL",
+      "priority": "critical",
+      "count": 641
+    },
+    {
+      "timestamp": "2025-12-31T09:00:02Z",
+      "subject": "Persona Health Degradation: auditor",
+      "priority": "medium",
+      "count": 510
+    },
+    {
+      "timestamp": "2026-01-01T05:00:02Z",
+      "subject": "Persona Health Degradation: architect",
+      "priority": "medium",
+      "count": 484
+    },
+    {
+      "timestamp": "2026-01-01T07:00:02Z",
+      "subject": "Persona Health Degradation: maintainer",
+      "priority": "medium",
+      "count": 464
+    },
+    {
+      "timestamp": "2026-01-02T12:58:22Z",
+      "subject": "TASK_AGE_CRITICAL",
+      "priority": "critical",
+      "count": 595
+    },
+    {
+      "timestamp": "2026-01-02T22:00:02Z",
+      "subject": "Persona Health Degradation: auditor",
+      "priority": "medium",
+      "count": 450
+    },
+    {
+      "timestamp": "2026-01-03T18:00:02Z",
+      "subject": "Persona Health Degradation: architect",
+      "priority": "medium",
+      "count": 424
+    },
+    {
+      "timestamp": "2026-01-03T19:00:02Z",
+      "subject": "Persona Health Degradation: maintainer",
+      "priority": "medium",
+      "count": 405
+    },
+    {
+      "timestamp": "2026-01-05T01:04:22Z",
+      "subject": "TASK_AGE_CRITICAL",
+      "priority": "critical",
+      "count": 538
+    },
+    {
+      "timestamp": "2026-01-05T11:00:01Z",
+      "subject": "Persona Health Degradation: auditor",
+      "priority": "medium",
+      "count": 390
+    },
+    {
+      "timestamp": "2026-01-06T07:00:01Z",
+      "subject": "Persona Health Degradation: architect",
+      "priority": "medium",
+      "count": 364
+    },
+    {
+      "timestamp": "2026-01-06T07:00:02Z",
+      "subject": "Persona Health Degradation: maintainer",
+      "priority": "medium",
+      "count": 346
+    },
+    {
+      "timestamp": "2026-01-07T14:09:54Z",
+      "subject": "TASK_AGE_CRITICAL",
+      "priority": "critical",
+      "count": 492
+    },
+    {
+      "timestamp": "2026-01-07T23:00:01Z",
+      "subject": "Persona Health Degradation: auditor",
+      "priority": "medium",
+      "count": 331
+    },
+    {
+      "timestamp": "2026-01-09T16:00:02Z",
+      "subject": "Persona Health Degradation: architect",
+      "priority": "medium",
+      "count": 308
+    },
+    {
+      "timestamp": "2026-01-09T17:00:02Z",
+      "subject": "Persona Health Degradation: maintainer",
+      "priority": "medium",
+      "count": 289
+    },
+    {
+      "timestamp": "2026-01-09T18:00:01Z",
+      "subject": "Persona Health Degradation: optimizer",
+      "priority": "medium",
+      "count": 289
+    },
+    {
+      "timestamp": "2026-01-10T19:00:01Z",
+      "subject": "Persona Health Degradation: skeptic",
+      "priority": "medium",
+      "count": 305
+    },
+    {
+      "timestamp": "2026-01-11T13:00:02Z",
+      "subject": "Persona Health Degradation: experimenter",
+      "priority": "medium",
+      "count": 288
+    },
+    {
+      "timestamp": "2026-01-11T15:00:01Z",
+      "subject": "Persona Health Degradation: auditor",
+      "priority": "medium",
+      "count": 286
+    },
+    {
+      "timestamp": "2026-01-11T15:44:04Z",
+      "subject": "TASK_AGE_CRITICAL",
+      "priority": "critical",
+      "count": 462
+    },
+    {
+      "timestamp": "2026-01-12T05:00:01Z",
+      "subject": "Persona Health Degradation: architect",
+      "priority": "medium",
+      "count": 272
+    },
+    {
+      "timestamp": "2026-01-12T05:00:02Z",
+      "subject": "Persona Health Degradation: maintainer",
+      "priority": "medium",
+      "count": 272
+    },
+    {
+      "timestamp": "2026-01-12T06:00:01Z",
+      "subject": "Persona Health Degradation: optimizer",
+      "priority": "medium",
+      "count": 271
+    },
+    {
+      "timestamp": "2026-01-13T07:00:01Z",
+      "subject": "Persona Health Degradation: skeptic",
+      "priority": "medium",
+      "count": 246
+    },
+    {
+      "timestamp": "2026-01-14T01:00:02Z",
+      "subject": "Persona Health Degradation: experimenter",
+      "priority": "medium",
+      "count": 229
+    },
+    {
+      "timestamp": "2026-01-14T03:00:02Z",
+      "subject": "Persona Health Degradation: auditor",
+      "priority": "medium",
+      "count": 227
+    },
+    {
+      "timestamp": "2026-01-14T03:44:57Z",
+      "subject": "TASK_AGE_CRITICAL",
+      "priority": "critical",
+      "count": 349
+    },
+    {
+      "timestamp": "2026-01-14T17:00:02Z",
+      "subject": "Persona Health Degradation: architect",
+      "priority": "medium",
+      "count": 213
+    },
+    {
+      "timestamp": "2026-01-14T17:00:02Z",
+      "subject": "Persona Health Degradation: maintainer",
+      "priority": "medium",
+      "count": 213
+    },
+    {
+      "timestamp": "2026-01-14T18:00:02Z",
+      "subject": "Persona Health Degradation: optimizer",
+      "priority": "medium",
+      "count": 212
+    },
+    {
+      "timestamp": "2026-01-15T19:00:02Z",
+      "subject": "Persona Health Degradation: skeptic",
+      "priority": "medium",
+      "count": 187
+    },
+    {
+      "timestamp": "2026-01-16T13:00:02Z",
+      "subject": "Persona Health Degradation: experimenter",
+      "priority": "medium",
+      "count": 170
+    },
+    {
+      "timestamp": "2026-01-16T15:00:02Z",
+      "subject": "Persona Health Degradation: auditor",
+      "priority": "medium",
+      "count": 168
+    },
+    {
+      "timestamp": "2026-01-16T15:45:41Z",
+      "subject": "TASK_AGE_CRITICAL",
+      "priority": "critical",
+      "count": 254
+    },
+    {
+      "timestamp": "2026-01-17T05:00:02Z",
+      "subject": "Persona Health Degradation: architect",
+      "priority": "medium",
+      "count": 154
+    },
+    {
+      "timestamp": "2026-01-17T05:00:02Z",
+      "subject": "Persona Health Degradation: maintainer",
+      "priority": "medium",
+      "count": 154
+    },
+    {
+      "timestamp": "2026-01-17T06:00:02Z",
+      "subject": "Persona Health Degradation: optimizer",
+      "priority": "medium",
+      "count": 153
+    },
+    {
+      "timestamp": "2026-01-18T07:00:02Z",
+      "subject": "Persona Health Degradation: skeptic",
+      "priority": "medium",
+      "count": 128
+    },
+    {
+      "timestamp": "2026-01-19T02:00:02Z",
+      "subject": "Persona Health Degradation: experimenter",
+      "priority": "medium",
+      "count": 110
+    },
+    {
+      "timestamp": "2026-01-19T03:00:02Z",
+      "subject": "Persona Health Degradation: auditor",
+      "priority": "medium",
+      "count": 109
+    },
+    {
+      "timestamp": "2026-01-19T03:47:13Z",
+      "subject": "TASK_AGE_CRITICAL",
+      "priority": "critical",
+      "count": 141
+    },
+    {
+      "timestamp": "2026-01-19T17:00:02Z",
+      "subject": "Persona Health Degradation: maintainer",
+      "priority": "medium",
+      "count": 95
+    },
+    {
+      "timestamp": "2026-01-19T18:00:01Z",
+      "subject": "Persona Health Degradation: architect",
+      "priority": "medium",
+      "count": 94
+    },
+    {
+      "timestamp": "2026-01-19T18:00:02Z",
+      "subject": "Persona Health Degradation: optimizer",
+      "priority": "medium",
+      "count": 94
+    },
+    {
+      "timestamp": "2026-01-20T19:00:02Z",
+      "subject": "Persona Health Degradation: skeptic",
+      "priority": "medium",
+      "count": 69
+    },
+    {
+      "timestamp": "2026-01-21T14:00:02Z",
+      "subject": "Persona Health Degradation: experimenter",
+      "priority": "medium",
+      "count": 51
+    },
+    {
+      "timestamp": "2026-01-21T15:47:57Z",
+      "subject": "TASK_AGE_CRITICAL",
+      "priority": "critical",
+      "count": 46
+    },
+    {
+      "timestamp": "2026-01-21T16:00:02Z",
+      "subject": "Persona Health Degradation: auditor",
+      "priority": "medium",
+      "count": 49
+    },
+    {
+      "timestamp": "2026-01-22T05:00:02Z",
+      "subject": "Persona Health Degradation: maintainer",
+      "priority": "medium",
+      "count": 36
+    },
+    {
+      "timestamp": "2026-01-22T06:00:02Z",
+      "subject": "Persona Health Degradation: architect",
+      "priority": "medium",
+      "count": 35
+    },
+    {
+      "timestamp": "2026-01-22T06:00:02Z",
+      "subject": "Persona Health Degradation: optimizer",
+      "priority": "medium",
+      "count": 35
+    },
+    {
+      "timestamp": "2026-01-23T07:00:02Z",
+      "subject": "Persona Health Degradation: skeptic",
+      "priority": "medium",
+      "count": 10
+    }
+  ],
+  "last_deduplicated": null
+}

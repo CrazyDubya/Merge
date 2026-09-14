@@ -1,0 +1,186 @@
+{
+  "icons_and_ui": {
+    "base_template": "Clean modern icon design: {icon_subject}, {style}, {color_scheme}, vector-style, professional UI/UX quality, {size_note}.",
+    "subjects": [
+      "persona switching indicator",
+      "task completion badge",
+      "emotional state visualization",
+      "system health monitor",
+      "memory timeline icon",
+      "emergence detection symbol"
+    ],
+    "styles": [
+      "minimalist flat design",
+      "subtle 3D gradient",
+      "line art outline",
+      "glassmorphism effect",
+      "neumorphism style",
+      "material design"
+    ],
+    "color_schemes": [
+      "monochromatic with accent",
+      "gradient blend",
+      "bold primary colors",
+      "muted professional palette",
+      "dark mode optimized",
+      "light mode friendly"
+    ],
+    "recommended_settings": {
+      "width": 512,
+      "height": 512,
+      "alchemy": false,
+      "contrast": 3,
+      "presetStyle": "GRAPHIC_DESIGN",
+      "note": "Fast generation for UI elements"
+    }
+  },
+  "data_visualizations": {
+    "base_template": "Data visualization graphic: {data_type}, {chart_style}, {aesthetic}, clean and readable, professional infographic quality.",
+    "data_types": [
+      "persona activity timeline",
+      "success rate by persona",
+      "emotional state transitions",
+      "task completion metrics",
+      "switch frequency heatmap",
+      "token usage over time"
+    ],
+    "chart_styles": [
+      "modern minimalist chart",
+      "infographic style",
+      "dashboard widget design",
+      "abstract data art",
+      "3D isometric visualization",
+      "retro-futuristic display"
+    ],
+    "aesthetics": [
+      "cyberpunk neon theme",
+      "clean corporate style",
+      "playful colorful",
+      "dark mode elegant",
+      "scientific precise",
+      "artistic interpretive"
+    ],
+    "recommended_settings": {
+      "width": 1024,
+      "height": 768,
+      "alchemy": true,
+      "contrast": 3,
+      "presetStyle": "GRAPHIC_DESIGN"
+    }
+  },
+  "persona_avatars": {
+    "base_template": "Avatar representing {persona_name} personality: {visual_metaphor}, {art_style}, {mood}, symbolic and memorable, {composition}.",
+    "personas": {
+      "architect": {
+        "visual_metaphors": [
+          "blueprint and golden ratio geometry",
+          "cathedral architecture merging with neural networks",
+          "crystalline structures forming patterns",
+          "ancient library meets digital matrix"
+        ],
+        "mood": "wise, structured, visionary"
+      },
+      "optimizer": {
+        "visual_metaphors": [
+          "streamlined arrows and efficiency symbols",
+          "racing elements and speed lines",
+          "precision gears and clockwork",
+          "data streams being refined and perfected"
+        ],
+        "mood": "dynamic, focused, relentless"
+      },
+      "auditor": {
+        "visual_metaphors": [
+          "magnifying glass revealing hidden details",
+          "shield and lock symbols",
+          "checklist with glowing verified marks",
+          "fortress walls with security scanning"
+        ],
+        "mood": "vigilant, thorough, protective"
+      },
+      "maintainer": {
+        "visual_metaphors": [
+          "garden being carefully tended",
+          "tools and repair kit organized perfectly",
+          "bridge being reinforced",
+          "lighthouse guiding through storms"
+        ],
+        "mood": "caring, reliable, steady"
+      },
+      "skeptic": {
+        "visual_metaphors": [
+          "question marks forming detective silhouette",
+          "chess pieces planning strategy",
+          "mirror showing hidden truths",
+          "storm clouds with lightning of insight"
+        ],
+        "mood": "questioning, sharp, challenging"
+      },
+      "experimenter": {
+        "visual_metaphors": [
+          "explosion of colorful possibilities",
+          "mad scientist laboratory bubbling with chaos",
+          "kaleidoscope of experiments",
+          "rocket launching into unknown"
+        ],
+        "mood": "chaotic, curious, bold"
+      }
+    },
+    "art_styles": [
+      "abstract symbolic",
+      "low-poly geometric",
+      "watercolor artistic",
+      "digital tech aesthetic",
+      "hand-drawn sketch style",
+      "modern illustration"
+    ],
+    "compositions": [
+      "centered icon format",
+      "circular avatar badge",
+      "portrait orientation",
+      "abstract pattern fill"
+    ],
+    "recommended_settings": {
+      "width": 512,
+      "height": 512,
+      "alchemy": true,
+      "contrast": 4,
+      "num_images": 4,
+      "note": "Generate variations to pick best"
+    }
+  },
+  "status_banners": {
+    "base_template": "Dashboard status banner: {status_message}, {visual_style}, {color_mood}, clean typography space, modern web design aesthetic.",
+    "status_messages": [
+      "All Systems Operational",
+      "Persona Switch in Progress",
+      "Reflection Mode Active",
+      "Task Queue Processing",
+      "Emergency Mode",
+      "Emergence Detected"
+    ],
+    "visual_styles": [
+      "gradient background with geometric shapes",
+      "abstract data flow visualization",
+      "minimalist flat design",
+      "subtle animated-feel graphics",
+      "tech-inspired grid patterns",
+      "organic flowing forms"
+    ],
+    "color_moods": [
+      "success green gradient",
+      "warning amber tones",
+      "error red alert",
+      "info blue calm",
+      "neutral gray professional",
+      "vibrant multi-color"
+    ],
+    "recommended_settings": {
+      "width": 1472,
+      "height": 416,
+      "alchemy": false,
+      "contrast": 3,
+      "presetStyle": "GRAPHIC_DESIGN"
+    }
+  }
+}

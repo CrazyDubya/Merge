@@ -1,0 +1,43 @@
+# Leonardo.ai Integration - Git Ignore
+
+# API key configuration (NEVER commit this!)
+.config
+*.key
+*.secret
+
+# Generated image cache
+cache/
+*.jpg
+*.png
+*.jpeg
+*.webp
+
+# Cost and generation logs (may contain sensitive data)
+*.jsonl
+
+# Temporary files
+*.tmp
+.temp-*
+
+# Python bytecode (if we add Python helpers)
+__pycache__/
+*.pyc
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Test outputs
+test-output/
+debug-*
+
+# Monitoring configuration (may contain customized thresholds)
+monitoring/config
+monitoring/logs/
