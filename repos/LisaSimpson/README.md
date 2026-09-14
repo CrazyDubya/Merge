@@ -238,6 +238,93 @@ restored_memory = Memory.from_export(memory_data)
 agent = DeliberativeAgent(..., memory=restored_memory)
 ```
 
+## Swarm + Hierarchical Planning Extension
+
+The project now includes a concrete swarm runtime in
+`deliberative_agent/swarm.py`:
+
+- `SwarmManager` builds an executable goal DAG from dependencies, `CompositeGoal`,
+  and registered `HierarchicalPlanner` decomposers.
+- `SwarmManager.execute()` schedules independent branches in parallel and joins
+  dependency outputs into downstream state.
+- `SwarmMember` routes goals to specialized agents using
+  `goal.metadata["required_capabilities"]` / `["required_tools"]`.
+- `build_todo_goal_graph()` converts multi-phase todos into Goal DAG nodes.
+- `SwarmDashboardSnapshot` provides polling-friendly observability data for a UI.
+
+### Example: Multi-Phase Goal DAG
+
+```python
+import asyncio
+from deliberative_agent import (
+    DeliberativeAgent,
+    Planner,
+    HierarchicalPlanner,
+    SwarmManager,
+    SwarmMember,
+    TodoItem,
+    build_todo_goal_graph,
+    WorldState,
+)
+
+# Convert todo phases/dependencies into goals.
+todo_goals = build_todo_goal_graph([
+    TodoItem(id="phase1_design", description="Design plan"),
+    TodoItem(
+        id="phase2_build",
+        description="Build implementation",
+        dependencies=["phase1_design"],
+        required_capabilities=["build"],
+    ),
+    TodoItem(
+        id="phase3_verify",
+        description="Run verification and tests",
+        dependencies=["phase2_build"],
+        required_capabilities=["qa"],
+    ),
+])
+
+# Use your existing actions + executor implementations.
+planner = HierarchicalPlanner(Planner(actions))
+
+build_agent = DeliberativeAgent(actions=actions, action_executor=build_executor)
+qa_agent = DeliberativeAgent(actions=actions, action_executor=qa_executor)
+
+swarm = SwarmManager(
+    hierarchical_planner=planner,
+    members=[
+        SwarmMember(name="builder", agent=build_agent, capabilities={"build"}),
+        SwarmMember(name="qa", agent=qa_agent, capabilities={"qa"}),
+    ],
+    max_parallelism=2,
+)
+
+async def run():
+    result = await swarm.execute(todo_goals, WorldState())
+    print(result.status)
+    print(swarm.get_dashboard_snapshot())
+
+asyncio.run(run())
+```
+
+### Memory Side-Channels
+
+`Memory` now supports channel-aware retrieval policies:
+
+```python
+# Attach lessons to specific channels.
+memory.add_lesson(lesson, channel="task")
+memory.add_lesson(lesson, channel="recent")
+
+# Tune retrieval behavior per channel.
+memory.set_channel_policy("recent", strategy="recency", limit=50)
+memory.set_channel_policy("project", strategy="persistence", limit=200)
+
+# Retrieve with channel policy.
+task_lessons = memory.retrieve_relevant(goal, channel="task")
+recent_lessons = memory.retrieve_by_channel("recent")
+```
+
 ## Architecture
 
 ### Confidence System
@@ -303,6 +390,70 @@ pytest --cov=deliberative_agent
 # Just unit tests
 pytest tests/test_core.py tests/test_planning.py
 ```
+
+## LLM Testing
+
+The agent can be tested with multiple LLM providers (OpenAI, Anthropic, XAI/Grok, Groq, DeepSeek, OpenRouter) on various problem difficulties.
+
+### Quick Start
+
+1. Install LLM dependencies:
+```bash
+pip install -e ".[llm]"
+```
+
+2. Set API keys:
+```bash
+export OPENAI_API_KEY=your_key
+export ANTHROPIC_API_KEY=your_key
+export XAI_API_KEY=your_key
+export GROQ_API_KEY=your_key
+export DEEPSEEK_API_KEY=your_key
+```
+
+3. Run comprehensive tests:
+```bash
+# All providers, all problems
+python run_llm_tests.py
+
+# Specific provider and difficulty
+python run_llm_tests.py --provider openai --difficulty medium
+
+# Using pytest
+pytest tests/test_llm_comprehensive.py -v -s
+```
+
+See [tests/README_TESTING.md](tests/README_TESTING.md) for detailed documentation on:
+- Setting up API keys
+- Running different test scenarios
+- Interpreting results
+- Adding custom problems
+- Adding new LLM providers
+
+### Example
+
+```python
+from deliberative_agent.llm_integration import LLMProvider, create_llm_client
+from deliberative_agent.llm_executor import SimpleLLMExecutor
+from deliberative_agent import DeliberativeAgent
+
+# Create LLM client
+client = create_llm_client(LLMProvider.OPENAI)
+
+# Create executor that uses the LLM
+executor = SimpleLLMExecutor(client)
+
+# Create agent with actions and executor
+agent = DeliberativeAgent(
+    actions=my_actions,
+    action_executor=executor
+)
+
+# Run the agent
+result = await agent.achieve(goal, initial_state)
+```
+
+See [example_llm_testing.py](example_llm_testing.py) for more examples.
 
 ## Philosophy
 
