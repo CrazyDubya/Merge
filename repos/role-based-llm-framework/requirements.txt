@@ -49,7 +49,7 @@ flake8==6.1.0
 mypy==1.7.1
 
 # Security & Validation
-cryptography==41.0.8
+cryptography==50.0.0
 passlib==1.7.4
 python-jose[cryptography]==3.4.0
 
